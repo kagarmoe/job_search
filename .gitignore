@@ -19,5 +19,8 @@ venv/
 # OS
 .DS_Store
 
+# Logs
+logs/
+
 # bv (beads viewer) local config and caches
 .bv/

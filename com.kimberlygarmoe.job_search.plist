@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Job label (must be unique system-wide) -->
+    <key>Label</key>
+    <string>com.kimberlygarmoe.job_search</string>
+    
+    <!-- Program to run -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/kimberlygarmoe/repos/job_search/.venv/bin/python3</string>
+        <string>/Users/kimberlygarmoe/repos/job_search/run_pipeline.py</string>
+        <string>--rss-only</string>
+    </array>
+    
+    <!-- Working directory -->
+    <key>WorkingDirectory</key>
+    <string>/Users/kimberlygarmoe/repos/job_search</string>
+    
+    <!-- Run daily at 8:00 AM -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <string>/Users/kimberlygarmoe/repos/job_search/logs/pipeline.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/kimberlygarmoe/repos/job_search/logs/pipeline.error.log</string>
+    
+    <!-- Run even if the previous scheduled run is missed (e.g., Mac was asleep) -->
+    <key>RunAtLoad</key>
+    <false/>
+    
+    <!-- Environment variables (add OPENAI_API_KEY here if using --search-only) -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
