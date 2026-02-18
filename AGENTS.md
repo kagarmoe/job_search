@@ -120,6 +120,25 @@ python filter_jobs_by_location.py  # Deletes non-matching jobs from database
 
 **Warning**: This script DELETES rows from the database. Review the output before confirming.
 
+#### `profile_import.py`
+Imports profile data from LinkedIn markdown into the database.
+
+**Purpose**: One-time import of your resume/profile data into the profile tables (job_history, education, skills, profile_meta).
+
+**Usage**:
+```bash
+python profile_import.py  # Imports resumes/LinkedIn_Profile.md
+python profile_import.py --profile path/to/profile.md  # Custom path
+```
+
+**What it imports**:
+- Profile metadata (name, title, location, email, LinkedIn, GitHub, summary)
+- Job history (company, title, dates, location, description)
+- Education (institution, degree, field)
+- Skills (from Top Skills and Languages sections)
+
+**Note**: Run once to populate your profile. Re-running will duplicate entries unless you clear tables first.
+
 #### `run_pipeline.py`
 **Unified job search pipeline** - orchestrates fetching from all sources and stores directly to database.
 
@@ -237,13 +256,19 @@ python run_pipeline.py --rss-only   # RSS feeds only (faster, no API key)
 python run_pipeline.py --search-only # Web search only (requires OPENAI_API_KEY)
 ```
 
-### 2. **Filter by location**
+### 2. **Import profile data (one-time setup)**
+```bash
+python profile_import.py
+# Imports resumes/LinkedIn_Profile.md into database
+```
+
+### 3. **Filter by location**
 ```bash
 python filter_jobs_by_location.py
 # Removes non-Seattle/non-remote jobs from database
 ```
 
-### 3. **Query database programmatically**
+### 4. **Query database programmatically**
 ```python
 from db.connection import get_db
 from db.jobs import list_jobs
@@ -259,7 +284,7 @@ from db.jobs import get_job
 job = get_job(123)
 ```
 
-### 4. **Run database smoke tests**
+### 5. **Run database smoke tests**
 ```bash
 python -m db.smoke_test
 # Tests all database operations with temp database
@@ -431,6 +456,7 @@ Assisted-by: Claude Sonnet 4.5 via Crush <crush@charm.land>
 2. Update dataclass in `db/models.py`
 3. Add CRUD operations to `db/profile.py`
 4. Update `db/smoke_test.py` to test new operations
+5. Update `profile_import.py` parser if importing from markdown
 
 ### Scoring/ranking jobs
 Job scoring is supported but not yet automated:
