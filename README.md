@@ -66,6 +66,21 @@ tail -f logs/pipeline.log
 
 The scheduler runs daily at 8:00 AM with RSS-only mode. See [SCHEDULER.md](SCHEDULER.md) for full configuration options.
 
+## Web Interface
+
+**Start the Flask web app:**
+```bash
+python app.py
+```
+Then visit http://localhost:5000 in your browser.
+
+**Features:**
+- View all jobs with filtering (status, source, score, date)
+- Sort jobs by various criteria
+- View detailed job information
+- Update job status and score via web UI
+- View your profile information
+
 ## Working with Jobs
 
 ### View jobs in database
@@ -116,11 +131,14 @@ good_jobs = list_jobs(min_score=7.0, order_by="score DESC")
 
 ## Project Structure
 
+- `app.py` - Flask web application for viewing and managing jobs
 - `run_pipeline.py` - Main entry point for job fetching
 - `rss_job_feed.py` - RSS feed parser
 - `startup_search.py` - Web search integration
 - `filter_jobs_by_location.py` - Location filter utility
 - `profile_import.py` - Import LinkedIn profile to database
+- `app/templates/` - HTML templates for web interface
+- `app/static/` - CSS and static assets
 - `db/` - Database layer (schema, models, CRUD operations)
 - `jobs/` - Legacy CSV files
 - `resumes/` - Resume/profile documents

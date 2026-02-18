@@ -139,6 +139,36 @@ python profile_import.py --profile path/to/profile.md  # Custom path
 
 **Note**: Run once to populate your profile. Re-running will duplicate entries unless you clear tables first.
 
+#### `app.py`
+Flask web application for viewing and managing job listings.
+
+**Features**:
+- Job list with filtering (status, source, score) and sorting
+- Job detail view with full description
+- Update job status and score via web UI
+- View profile information (imported from LinkedIn markdown)
+- Responsive design with clean interface
+
+**Usage**:
+```bash
+python app.py  # Starts server on http://localhost:5000
+```
+
+**Routes**:
+- `/` - Job list with filters
+- `/job/<id>` - Job detail page
+- `/profile` - Profile information
+- `/job/<id>/status` - Update status (POST, AJAX)
+- `/job/<id>/score` - Update score (POST, AJAX)
+
+**Templates**:
+- `app/templates/base.html` - Base layout with navigation
+- `app/templates/index.html` - Job list page
+- `app/templates/job_detail.html` - Job detail page
+- `app/templates/profile.html` - Profile page
+
+**Note**: For production deployment, use a WSGI server like Gunicorn instead of Flask's development server.
+
 #### `run_pipeline.py`
 **Unified job search pipeline** - orchestrates fetching from all sources and stores directly to database.
 
@@ -232,7 +262,7 @@ From installed packages:
 
 **No requirements.txt found** - dependencies are installed but not formally tracked. If recreating environment, key packages are:
 ```bash
-pip install pandas feedparser openai openai-agents
+pip install pandas feedparser openai openai-agents flask
 ```
 
 ### Environment Variables
@@ -256,7 +286,13 @@ python run_pipeline.py --rss-only   # RSS feeds only (faster, no API key)
 python run_pipeline.py --search-only # Web search only (requires OPENAI_API_KEY)
 ```
 
-### 2. **Import profile data (one-time setup)**
+### 2. **View jobs in web interface**
+```bash
+python app.py  # Visit http://localhost:5000
+# Interactive web UI for viewing, filtering, and managing jobs
+```
+
+### 3. **Import profile data (one-time setup)**
 ```bash
 python profile_import.py
 # Imports resumes/LinkedIn_Profile.md into database
@@ -268,7 +304,7 @@ python filter_jobs_by_location.py
 # Removes non-Seattle/non-remote jobs from database
 ```
 
-### 4. **Query database programmatically**
+### 5. **Query database programmatically**
 ```python
 from db.connection import get_db
 from db.jobs import list_jobs
@@ -284,7 +320,7 @@ from db.jobs import get_job
 job = get_job(123)
 ```
 
-### 5. **Run database smoke tests**
+### 6. **Run database smoke tests**
 ```bash
 python -m db.smoke_test
 # Tests all database operations with temp database
