@@ -357,15 +357,59 @@ See `archive/README.md` for details and historical usage.
 
 ## Git Workflow
 
-**Current branch**: `beadspace` (for beadspace dashboard deployment)  
-**Main branch**: `main` (default branch for production code)
-
-**Recent commits** (from initial git status):
-- `a3b184e` Add beadspace in pages
-- `16812b6` Add profile drafts
-- `43a7152` Merge pull request #2 from kagarmoe/resume
-
+**Main branch**: `main` (default branch for production code)  
 **CI/CD**: GitHub Actions workflow for Beadspace deployment (`.github/workflows/beadspace.yml`)
+
+### Commit Message Format
+
+This project uses **Conventional Commits** for clear, structured commit history.
+
+**Format**: `<type>(<scope>): <description>`
+
+**Types**:
+- `feat` - New feature
+- `fix` - Bug fix
+- `docs` - Documentation only
+- `style` - Code style (formatting, semicolons, etc.)
+- `refactor` - Code change that neither fixes a bug nor adds a feature
+- `perf` - Performance improvement
+- `test` - Adding or updating tests
+- `chore` - Maintenance (dependencies, build, etc.)
+- `ci` - CI/CD changes
+
+**Scope** (optional): Component affected (pipeline, db, scheduler, docs, etc.)
+
+**Examples**:
+```
+feat(pipeline): add support for LinkedIn RSS feeds
+fix(db): correct upsert behavior for duplicate URLs
+docs(readme): add installation instructions
+refactor(pipeline): extract common fetching logic
+chore(deps): update pandas to 2.3.4
+```
+
+**Breaking changes**: Add `!` after type/scope and `BREAKING CHANGE:` in footer:
+```
+feat(db)!: change job status enum values
+
+BREAKING CHANGE: status field now uses lowercase values (new, applied, rejected)
+```
+
+**Template**:
+```
+<type>(<scope>): <short summary>
+
+<optional body: explain what and why, not how>
+
+<optional footer: breaking changes, issue references>
+
+
+💘 Generated with Crush
+
+
+
+Assisted-by: Claude Sonnet 4.5 via Crush <crush@charm.land>
+```
 
 ---
 
