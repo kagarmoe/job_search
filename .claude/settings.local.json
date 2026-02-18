@@ -2,7 +2,23 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:www.linkedin.com)",
-      "WebFetch(domain:rss.app"
+      "WebFetch(domain:rss.app)",
+      "Bash(bd --help:*)",
+      "Bash(bd create:*)",
+      "Bash(bd ready:*)",
+      "Bash(bd stats:*)",
+      "Bash(git -C /Users/kimberlygarmoe/repos/job_search log --format=\"%H %s\")",
+      "Bash(bd list:*)",
+      "Bash(bd show:*)",
+      "Bash(bd update:*)",
+      "Bash(python -m db.smoke_test:*)",
+      "Bash(git -C /Users/kimberlygarmoe/repos/job_search status)",
+      "Bash(git -C /Users/kimberlygarmoe/repos/job_search diff --stat)",
+      "Bash(git -C /Users/kimberlygarmoe/repos/job_search log --oneline -5)",
+      "Bash(bd close:*)",
+      "Bash(git -C /Users/kimberlygarmoe/repos/job_search add:*)",
+      "Bash(git -C:*)",
+      "Bash(bd sync:*)"
     ]
   }
 }
