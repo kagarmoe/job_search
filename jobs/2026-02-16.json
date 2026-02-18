@@ -1,0 +1,127 @@
+{
+  "id": "resp_0b81e969e204d92400699395d40c0c819082a64c5158c5112b",
+  "created_at": 1771279828.0,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "metadata": {},
+  "model": "gpt-4.1-2025-04-14",
+  "object": "response",
+  "output": [
+    {
+      "id": "ws_0b81e969e204d92400699395d4cd3481909abf31e2e2fdbbf5",
+      "action": {
+        "query": "Senior Technical Writer OR Staff Technical Writer OR Documentation Engineer OR Developer Documentation OR API Documentation OR Technical Content Lead jobs remote hybrid Seattle startup growth-stage Series A Series B Series C seed AI ML fintech dev tools infrastructure data engineering posted last 24 hours",
+        "type": "search",
+        "queries": [
+          "Senior Technical Writer OR Staff Technical Writer OR Documentation Engineer OR Developer Documentation OR API Documentation OR Technical Content Lead jobs remote hybrid Seattle startup growth-stage Series A Series B Series C seed AI ML fintech dev tools infrastructure data engineering posted last 24 hours"
+        ],
+        "sources": null
+      },
+      "status": "completed",
+      "type": "web_search_call"
+    },
+    {
+      "id": "msg_0b81e969e204d92400699395d6f4088190968c507aa178570a",
+      "content": [
+        {
+          "annotations": [
+            {
+              "end_index": 885,
+              "start_index": 782,
+              "title": "Technical Writer - Data Analytics at Metabase • Remote (Work from Home) | Wellfound",
+              "type": "url_citation",
+              "url": "https://wellfound.com/jobs/3813490-technical-writer-data-analytics?utm_source=openai"
+            },
+            {
+              "end_index": 1339,
+              "start_index": 1223,
+              "title": "Lead Technical Writer & Documentation Engineer at Source • New York City • San Francisco • Toronto • Remote (Work from Home) | Wellfound",
+              "type": "url_citation",
+              "url": "https://wellfound.com/jobs/3543143-lead-technical-writer-documentation-engineer?utm_source=openai"
+            },
+            {
+              "end_index": 1650,
+              "start_index": 1560,
+              "title": "2026 Technical Writer Salary in Remote | Built In",
+              "type": "url_citation",
+              "url": "https://builtin.com/salaries/us/remote/technical-writer?utm_source=openai"
+            }
+          ],
+          "text": "I searched Wellfound.com and BuiltIn.com for **job postings published within the last 24 hours** (as of February 16, 2026) that match your specified criteria (roles like Technical Writer, Documentation Engineer, Developer Documentation, etc.; startup/growth-stage; remote or Seattle-hybrid; domains such as developer platforms, APIs, infrastructure, AI/ML, fintech, dev tools). However, none of the postings surfaced were published within the last 24 hours that meet *all* the criteria.\n\nHere’s what I found:\n\nFrom **Wellfound.com**:\n\n- **Technical Writer – Data Analytics at Metabase**  \n  Posted **2 weeks ago**, fully remote, startup (Series B growth stage) in analytics/data engineering; emphasizes docs-as-code, working with engineers, API/SDK documentation as *nice to have*. ([wellfound.com](https://wellfound.com/jobs/3813490-technical-writer-data-analytics?utm_source=openai))\n\n- **Lead Technical Writer & Documentation Engineer at Source**  \n  Posted **3 months ago**, remote (including Seattle-friendly regions), startup in developer infrastructure, with strong emphasis on infrastructure, docs-as-code, working directly with engineers, and developer-facing documentation. However, **not within last 24 hours**. ([wellfound.com](https://wellfound.com/jobs/3543143-lead-technical-writer-documentation-engineer?utm_source=openai))\n\nFrom **BuiltIn.com**:\n\nNo relevant new postings within the last 24 hours—the available roles were either unrelated or posted much earlier (e.g., removed, non-technical-writing roles, or outside your specified domains). ([builtin.com](https://builtin.com/salaries/us/remote/technical-writer?utm_source=openai))\n\nGiven that **no postings match all your criteria and appear to have been posted within the past day**, I must conclude:\n\n**no new job posts in the last 24 hours**\n\nIf you'd like, I can continue monitoring—say, expand the window to the past week—or adjust filters (e.g., include Seed-funded startups, or allow slightly older postings). Just let me know how you'd like to proceed!",
+          "type": "output_text",
+          "logprobs": []
+        }
+      ],
+      "role": "assistant",
+      "status": "completed",
+      "type": "message"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "temperature": 1.0,
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "web_search",
+      "filters": {
+        "allowed_domains": [
+          "builtin.com",
+          "wellfound.com"
+        ]
+      },
+      "search_context_size": "medium",
+      "user_location": {
+        "city": null,
+        "country": "US",
+        "region": null,
+        "timezone": null,
+        "type": "approximate"
+      }
+    }
+  ],
+  "top_p": 1.0,
+  "background": false,
+  "completed_at": 1771279833.0,
+  "conversation": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "previous_response_id": null,
+  "prompt": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": null,
+    "generate_summary": null,
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "status": "completed",
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "top_logprobs": 0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 17210,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 498,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 17708
+  },
+  "user": null,
+  "billing": {
+    "payer": "developer"
+  },
+  "frequency_penalty": 0.0,
+  "presence_penalty": 0.0,
+  "store": true
+}
