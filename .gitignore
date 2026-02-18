@@ -1,0 +1,20 @@
+# Database
+job_search.db
+job_search.db-wal
+job_search.db-shm
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
