@@ -88,6 +88,13 @@ python filter_jobs_by_location.py
 ```
 Keeps only Seattle metro area and truly remote jobs. **Warning**: Deletes non-matching jobs from database.
 
+### Import profile data
+
+```bash
+python profile_import.py
+```
+Parses `resumes/LinkedIn_Profile.md` and imports profile data into database (job history, education, skills). Run once to populate your profile.
+
 ### Programmatic access
 
 ```python
@@ -113,6 +120,7 @@ good_jobs = list_jobs(min_score=7.0, order_by="score DESC")
 - `rss_job_feed.py` - RSS feed parser
 - `startup_search.py` - Web search integration
 - `filter_jobs_by_location.py` - Location filter utility
+- `profile_import.py` - Import LinkedIn profile to database
 - `db/` - Database layer (schema, models, CRUD operations)
 - `jobs/` - Legacy CSV files
 - `resumes/` - Resume/profile documents
