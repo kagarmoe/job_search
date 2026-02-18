@@ -100,35 +100,6 @@ python startup_search.py  # Runs search_since("January 1, 2026")
 
 ### 3. **Data Processing Scripts**
 
-#### `clean_rss_files.py`
-Cleans all `rss_*.csv` files in the `jobs/` directory in-place.
-
-**Operations**:
-- Deduplicates by URL (keeps first occurrence)
-- Strips HTML tags from descriptions
-- Unescapes HTML entities
-- Normalizes apostrophes and dashes to standard characters
-- Reports original count → final count for each file
-
-**Usage**:
-```bash
-python clean_rss_files.py  # Processes all jobs/rss_*.csv files
-```
-
-#### `migrate_csvs.py`
-Loads all CSV files from `jobs/` directory into the SQLite database.
-
-**Behavior**:
-- Processes all `*.csv` files in `jobs/` directory
-- Uses `upsert_job()` - URLs are unique, duplicates across files are merged
-- Skips rows with missing title or URL
-- Initializes database schema if needed
-
-**Usage**:
-```bash
-python migrate_csvs.py  # Imports all CSV files into job_search.db
-```
-
 #### `filter_jobs_by_location.py`
 Filters database to keep only Seattle metro area and truly remote jobs.
 
@@ -294,23 +265,14 @@ python -m db.smoke_test
 # Tests all database operations with temp database
 ```
 
-### Legacy workflows (individual scripts)
+### Archived scripts
 
-These scripts still work but `run_pipeline.py` is preferred:
+**Note**: The following scripts have been moved to `archive/` as they are no longer needed with the unified pipeline:
 
-```bash
-# Fetch from RSS only (outputs CSV)
-python rss_job_feed.py
+- `clean_rss_files.py` - Cleaned CSV files (pipeline now stores directly to DB)
+- `migrate_csvs.py` - One-time CSV migration (already complete)
 
-# Search startup job boards (outputs CSV, requires OPENAI_API_KEY)
-python startup_search.py
-
-# Clean CSV files (in-place HTML stripping and dedup)
-python clean_rss_files.py
-
-# Import CSV files to database
-python migrate_csvs.py
-```
+See `archive/README.md` for details and historical usage.
 
 ---
 
@@ -340,9 +302,10 @@ python migrate_csvs.py
 ### File Organization
 - Scripts at repo root (single-purpose, runnable)
 - `db/` package for all database code
-- `jobs/` for data files (CSVs, JSON)
+- `jobs/` for data files (CSVs, JSON) - legacy artifacts
 - `resumes/` for profile/resume documents
 - `logs/` for pipeline execution logs
+- `archive/` for deprecated scripts (reference only)
 - `.beads/` for issue tracking data (gitignored)
 - `.beadspace/` for dashboard artifacts
 - `com.kimberlygarmoe.job_search.plist` - launchd configuration for daily runs
@@ -361,8 +324,8 @@ python migrate_csvs.py
 ### Job Sources
 1. **RSS feeds**: May have duplicate entries across feeds - deduplicate before saving
 2. **Dates**: RSS entries use `published_parsed` or `updated_parsed`, may be missing
-3. **HTML in descriptions**: RSS descriptions often contain HTML - use `clean_rss_files.py`
-4. **Web search JSON**: LLM responses may include markdown fences - `parse_json_response()` strips them
+3. **Web search JSON**: LLM responses may include markdown fences - `parse_json_response()` strips them
+4. **CSV files**: Legacy workflow - pipeline now stores directly to database
 
 ### Location Filtering
 1. **Destructive operation**: `filter_jobs_by_location.py` DELETES rows - no undo
@@ -387,8 +350,7 @@ python migrate_csvs.py
 **No automated tests for scripts** - manual testing required for:
 - RSS feed fetching
 - Web searches
-- CSV cleaning
-- Database migration
+- Pipeline integration
 - Location filtering
 
 ---
@@ -410,10 +372,10 @@ python migrate_csvs.py
 ## Extending the System
 
 ### Adding a new job source
-1. Create a script that outputs CSV with standard columns
+1. Create a function that returns job data in standardized format
 2. Follow the pattern in `rss_job_feed.py` or `startup_search.py`
-3. Save to `jobs/` directory with descriptive filename
-4. Run `migrate_csvs.py` to import
+3. Import the function in `run_pipeline.py` and call from pipeline
+4. Or create a standalone script that uses `db.jobs.upsert_job()` directly
 
 ### Adding a new status/enum
 1. Update CHECK constraint in `db/schema.py`
@@ -471,12 +433,6 @@ python filter_jobs_by_location.py
 # Test database
 python -m db.smoke_test
 
-# Legacy: individual scripts (use pipeline instead)
-python rss_job_feed.py              # RSS to CSV
-python startup_search.py            # Web search to CSV
-python clean_rss_files.py           # Clean CSV files
-python migrate_csvs.py              # Import CSVs to DB
-
 # Activate virtual environment
 source .venv/bin/activate  # macOS/Linux
 .venv\Scripts\activate     # Windows
@@ -505,3 +461,66 @@ bd sync                 # Sync issues to git
 **Database Location**: `job_search.db` (446 KB, last modified 2026-02-17)  
 **Python Version**: 3.10  
 **Platform**: macOS (darwin)
+
+<!-- bv-agent-instructions-v1 -->
+
+---
+
+## Beads Workflow Integration
+
+This project uses [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) for issue tracking. Issues are stored in `.beads/` and tracked in git.
+
+### Essential Commands
+
+```bash
+# View issues (launches TUI - avoid in automated sessions)
+bv
+
+# CLI commands for agents (use these instead)
+bd ready              # Show issues ready to work (no blockers)
+bd list --status=open # All open issues
+bd show <id>          # Full issue details with dependencies
+bd create --title="..." --type=task --priority=2
+bd update <id> --status=in_progress
+bd close <id> --reason="Completed"
+bd close <id1> <id2>  # Close multiple issues at once
+bd sync               # Commit and push changes
+```
+
+### Workflow Pattern
+
+1. **Start**: Run `bd ready` to find actionable work
+2. **Claim**: Use `bd update <id> --status=in_progress`
+3. **Work**: Implement the task
+4. **Complete**: Use `bd close <id>`
+5. **Sync**: Always run `bd sync` at session end
+
+### Key Concepts
+
+- **Dependencies**: Issues can block other issues. `bd ready` shows only unblocked work.
+- **Priority**: P0=critical, P1=high, P2=medium, P3=low, P4=backlog (use numbers, not words)
+- **Types**: task, bug, feature, epic, question, docs
+- **Blocking**: `bd dep add <issue> <depends-on>` to add dependencies
+
+### Session Protocol
+
+**Before ending any session, run this checklist:**
+
+```bash
+git status              # Check what changed
+git add <files>         # Stage code changes
+bd sync                 # Commit beads changes
+git commit -m "..."     # Commit code
+bd sync                 # Commit any new beads changes
+git push                # Push to remote
+```
+
+### Best Practices
+
+- Check `bd ready` at session start to find available work
+- Update status as you work (in_progress → closed)
+- Create new issues with `bd create` when you discover tasks
+- Use descriptive titles and set appropriate priority/type
+- Always `bd sync` before ending session
+
+<!-- end-bv-agent-instructions -->
