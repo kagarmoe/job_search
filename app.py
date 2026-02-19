@@ -12,12 +12,36 @@ Usage:
     # Then visit http://localhost:5000
 """
 
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from db.connection import get_db
 from db.jobs import list_jobs, get_job, update_status, update_score
 from db.profile import get_all_meta, list_job_history, list_skills
 
 app = Flask(__name__)
+
+
+def is_recent_job(posted_date_str):
+    """Check if job was posted in the last 24 hours."""
+    if not posted_date_str:
+        return False
+    
+    try:
+        # Parse posted_date (format: YYYY-MM-DD or datetime string)
+        if 'T' in posted_date_str:
+            posted_date = datetime.fromisoformat(posted_date_str.split('T')[0])
+        else:
+            posted_date = datetime.fromisoformat(posted_date_str)
+        
+        # Check if within last 24 hours
+        cutoff = datetime.now() - timedelta(hours=24)
+        return posted_date.date() >= cutoff.date()
+    except (ValueError, AttributeError):
+        return False
+
+
+# Make helper function available in templates
+app.jinja_env.globals.update(is_recent_job=is_recent_job)
 
 
 @app.route('/')

@@ -62,7 +62,12 @@
     <div class="job-card">
         <div class="job-header">
             <h3><a href="{{ url_for('job_detail', job_id=job.id) }}">{{ job.title }}</a></h3>
-            <span class="status-badge status-{{ job.status }}">{{ job.status }}</span>
+            <div class="job-badges">
+                <span class="status-badge status-{{ job.status }}">{{ job.status }}</span>
+                {% if is_recent_job(job.posted_date) and job.status == 'new' %}
+                <span class="new-badge">24h</span>
+                {% endif %}
+            </div>
         </div>
         
         <div class="job-meta">
@@ -76,7 +81,7 @@
         </div>
 
         {% if job.description %}
-        <p class="job-description">{{ job.description[:200] }}{% if job.description|length > 200 %}...{% endif %}</p>
+        <p class="job-description">{{ job.description|striptags|truncate(200) }}</p>
         {% endif %}
 
         <div class="job-actions">
