@@ -70,14 +70,8 @@
             </div>
         </div>
         
-        <div class="job-meta">
-            <span class="source">{{ job.source }}</span>
-            {% if job.posted_date %}
-                <span class="date">{{ job.posted_date }}</span>
-            {% endif %}
-            {% if job.location_label %}
-                <span class="location-label location-{{ job.location_label|lower|replace(' ', '-') }}">{{ job.location_label }}</span>
-            {% endif %}
+        <!-- Job type and pay directly under title -->
+        <div class="job-compensation">
             {% if job.job_type %}
                 <span class="job-type">{{ job.job_type }}</span>
             {% endif %}
@@ -88,6 +82,16 @@
                         ({{ job.contract_duration }})
                     {% endif %}
                 </span>
+            {% endif %}
+        </div>
+        
+        <div class="job-meta">
+            <span class="source">{{ job.source }}</span>
+            {% if job.posted_date %}
+                <span class="date">{{ job.posted_date }}</span>
+            {% endif %}
+            {% if job.location_label %}
+                <span class="location-label location-{{ job.location_label|lower|replace(' ', '-') }}">{{ job.location_label }}</span>
             {% endif %}
             {% if job.score %}
                 <span class="score">Score: {{ job.score }}/10</span>
