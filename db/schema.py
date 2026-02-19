@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     status          TEXT NOT NULL DEFAULT 'new'
                         CHECK (status IN ('new', 'reviewed', 'applied', 'rejected', 'offer')),
     location_label  TEXT CHECK (location_label IS NULL OR location_label IN ('Seattle', 'Remote', 'Review for location')),
+    job_type        TEXT,
+    pay_range       TEXT,
     resume_md           TEXT,
     resume_pdf_path     TEXT,
     cover_letter_md     TEXT,

@@ -62,21 +62,25 @@ Your tasks:
    - "Review for location" - Cannot determine with certainty, needs manual review
    - "DELETE" - Clearly does NOT meet criteria (wrong location AND not remote)
 
-   Examples:
-   - "Remote" in title but description says "must be in office 3 days/week in Austin" → "DELETE"
-   - Job in Bellevue, WA → "Seattle"
-   - Job says "100% remote, work from anywhere" → "Remote"
-   - Job in Portland, OR with no remote mention → "DELETE"
-   - Job in Los Angeles with unclear remote policy → "Review for location"
-   - Hybrid role outside Seattle area → "DELETE"
-   - Job location unclear from posting → "Review for location"
+2. JOB TYPE: Identify employment type
+   - Look for: full-time, full time, FTE, permanent, salaried
+   - Look for: contract, contractor, hourly, temp, temporary, C2C, corp-to-corp, freelance, W2 contract
+   - Look for: part-time, part time
+   
+   Return one of these EXACT types:
+   - "Full-time" - Permanent, salaried, FTE position
+   - "Contract" - Contract, hourly, temporary position
+   - "Part-time" - Part-time position
+   - "Not specified" - Cannot determine from posting
 
-2. PAY RANGE: Extract any salary/compensation information
-   - Look for: salary, compensation, pay rate, hourly rate, annual salary
-   - Include currency and time period (e.g., "$100,000-$150,000/year", "$50-75/hour")
+3. PAY RANGE: Extract salary/compensation information with time period
+   - For salaried: "$100,000-$150,000/year" or "$100K-$150K/year"
+   - For hourly: "$50-75/hour" or "$50-$75/hr"
+   - Look for: salary, compensation, pay rate, hourly rate, annual salary, base pay
+   - Include currency symbol ($) and time period (/year, /hour, /yr, /hr)
    - Return "NOT_SPECIFIED" if no pay information found
 
-3. TITLE CLEANUP: Fix any formatting issues in the title
+4. TITLE CLEANUP: Fix any formatting issues in the title
    - Add spaces where missing (e.g., "R0232726Technical Writer" → "R0232726 Technical Writer")
    - Fix obvious concatenation issues
    - Return cleaned title or original if no issues
@@ -85,7 +89,8 @@ Return ONLY valid JSON (no markdown):
 {{
   "location_label": "Seattle|Remote|Review for location|DELETE",
   "location_reasoning": "Brief explanation of your decision based on reading the ENTIRE posting",
-  "pay_range": "extracted pay or NOT_SPECIFIED",
+  "job_type": "Full-time|Contract|Part-time|Not specified",
+  "pay_range": "extracted pay with time period or NOT_SPECIFIED",
   "title_cleaned": "cleaned title text"
 }}
 """
@@ -118,6 +123,7 @@ def analyze_job(job) -> dict:
         return {
             "location_label": "Review for location",
             "location_reasoning": f"Analysis failed: {str(e)}",
+            "job_type": "Not specified",
             "pay_range": "NOT_SPECIFIED",
             "title_cleaned": job.title
         }
@@ -155,11 +161,13 @@ def process_jobs(job_ids=None, dry_run=False):
         
         location_label = analysis.get("location_label", "Review for location")
         reasoning = analysis.get("location_reasoning", "")
+        job_type = analysis.get("job_type", "Not specified")
         pay_range = analysis.get("pay_range", "NOT_SPECIFIED")
         title_cleaned = analysis.get("title_cleaned", job.title)
         
         print(f"Location: {location_label}")
         print(f"Reasoning: {reasoning}")
+        print(f"Job Type: {job_type}")
         print(f"Pay: {pay_range}")
         
         if title_cleaned != job.title:
@@ -195,16 +203,20 @@ def process_jobs(job_ids=None, dry_run=False):
             conn.execute("UPDATE jobs SET location_label = ? WHERE id = ?", (location_label, job.id))
             updates.append("location")
             
+            # Update job type
+            if job_type != "Not specified":
+                conn.execute("UPDATE jobs SET job_type = ? WHERE id = ?", (job_type, job.id))
+                updates.append("job_type")
+            
+            # Update pay range
+            if pay_range != "NOT_SPECIFIED":
+                conn.execute("UPDATE jobs SET pay_range = ? WHERE id = ?", (pay_range, job.id))
+                updates.append("pay_range")
+            
             # Update title if cleaned
             if title_cleaned != job.title:
                 conn.execute("UPDATE jobs SET title = ? WHERE id = ?", (title_cleaned, job.id))
                 updates.append("title")
-            
-            # Store pay range in description if found
-            if pay_range != "NOT_SPECIFIED" and job.description and pay_range not in job.description:
-                new_desc = f"{job.description}\n\n[Pay Range: {pay_range}]"
-                conn.execute("UPDATE jobs SET description = ? WHERE id = ?", (new_desc, job.id))
-                updates.append("pay")
             
             if updates:
                 conn.commit()
@@ -212,7 +224,7 @@ def process_jobs(job_ids=None, dry_run=False):
             else:
                 print(f"✓ No updates needed")
         else:
-            print(f"✓ Would update location_label to '{location_label}' (dry-run)")
+            print(f"✓ Would update location_label to '{location_label}', job_type to '{job_type}', pay_range to '{pay_range}' (dry-run)")
     
     # Print summary
     print(f"\n{'='*60}")

@@ -78,6 +78,12 @@
             {% if job.location_label %}
                 <span class="location-label location-{{ job.location_label|lower|replace(' ', '-') }}">{{ job.location_label }}</span>
             {% endif %}
+            {% if job.job_type %}
+                <span class="job-type">{{ job.job_type }}</span>
+            {% endif %}
+            {% if job.pay_range %}
+                <span class="pay-range">{{ job.pay_range }}</span>
+            {% endif %}
             {% if job.score %}
                 <span class="score">Score: {{ job.score }}/10</span>
             {% endif %}

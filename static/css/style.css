@@ -142,6 +142,27 @@ h2 {
     color: white;
 }
 
+/* Job type and pay range badges */
+.job-type {
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background-color: #9b59b6;
+    color: white;
+}
+
+.pay-range {
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background-color: #16a085;
+    color: white;
+}
+
 
 /* Filters */
 .filters {
