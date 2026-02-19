@@ -501,6 +501,83 @@ BREAKING CHANGE: status field now uses lowercase values (new, applied, rejected)
 Assisted-by: Claude Sonnet 4.5 via Crush <crush@charm.land>
 ```
 
+### Creating Pull Requests
+
+Use GitHub CLI (`gh`) to create PRs. Both title and body must follow conventional commit format.
+
+**Command structure**:
+```bash
+gh pr create --title "<type>(<scope>): <description>" --body "$(cat <<'EOF'
+## Summary
+
+<Brief overview of changes>
+
+### Features Added
+
+<List of features or changes>
+
+### Technical Details
+
+<Implementation details, commands, configuration>
+
+### Documentation
+
+<Doc updates made>
+
+
+💘 Generated with Crush
+EOF
+)"
+```
+
+**Important**:
+- PR title uses conventional commit format (same as commit messages)
+- Use HEREDOC (`$(cat <<'EOF' ... EOF)`) for multi-line body
+- Quote the entire body to preserve formatting
+- Include summary, features, technical details, and documentation sections
+- Remote name is `job_search` (not `origin`)
+
+**Example**:
+```bash
+# Push branch
+git push -u job_search feat-analyzer
+
+# Create PR
+gh pr create --title "feat(analyzer): add LLM-powered job analysis" --body "$(cat <<'EOF'
+## Summary
+
+Implements intelligent job filtering using GPT-4o.
+
+### Features Added
+
+- LLM-based location verification
+- Pay range extraction
+- Integration with pipeline
+
+### Technical Details
+
+Commands:
+\`\`\`bash
+python job_analyzer.py
+python run_pipeline.py --skip-analyzer
+\`\`\`
+
+### Documentation
+
+Updated AGENTS.md and README.md with usage examples.
+
+
+💘 Generated with Crush
+EOF
+)"
+```
+
+**Verification**:
+```bash
+gh pr view <number>                    # View PR details
+gh pr view <number> --json title,body  # Verify title and body present
+```
+
 ---
 
 ## Extending the System
