@@ -59,14 +59,17 @@ Your tasks:
    Return one of these EXACT labels:
    - "Seattle" - Job is clearly in Seattle metro area (within 20 miles of 98117)
    - "Remote" - Job is clearly fully remote (not hybrid, no office requirement)
-   - "Review for location" - Cannot determine with certainty OR outside Seattle but not clearly remote
+   - "Review for location" - Cannot determine with certainty, needs manual review
+   - "DELETE" - Clearly does NOT meet criteria (wrong location AND not remote)
 
    Examples:
-   - "Remote" in title but description says "must be in office 3 days/week in Austin" → "Review for location"
+   - "Remote" in title but description says "must be in office 3 days/week in Austin" → "DELETE"
    - Job in Bellevue, WA → "Seattle"
    - Job says "100% remote, work from anywhere" → "Remote"
-   - Job in Portland, OR with no remote mention → "Review for location"
-   - Hybrid role → "Review for location"
+   - Job in Portland, OR with no remote mention → "DELETE"
+   - Job in Los Angeles with unclear remote policy → "Review for location"
+   - Hybrid role outside Seattle area → "DELETE"
+   - Job location unclear from posting → "Review for location"
 
 2. PAY RANGE: Extract any salary/compensation information
    - Look for: salary, compensation, pay rate, hourly rate, annual salary
@@ -80,7 +83,7 @@ Your tasks:
 
 Return ONLY valid JSON (no markdown):
 {{
-  "location_label": "Seattle|Remote|Review for location",
+  "location_label": "Seattle|Remote|Review for location|DELETE",
   "location_reasoning": "Brief explanation of your decision based on reading the ENTIRE posting",
   "pay_range": "extracted pay or NOT_SPECIFIED",
   "title_cleaned": "cleaned title text"
@@ -137,6 +140,7 @@ def process_jobs(job_ids=None, dry_run=False):
         "seattle": 0,
         "remote": 0,
         "review": 0,
+        "deleted": 0,
         "pay_found": 0,
         "title_cleaned": 0
     }
@@ -165,7 +169,17 @@ def process_jobs(job_ids=None, dry_run=False):
         if pay_range != "NOT_SPECIFIED":
             stats["pay_found"] += 1
         
-        # Update statistics
+        # Handle DELETE decision - remove jobs that clearly don't meet criteria
+        if location_label == "DELETE":
+            stats["deleted"] += 1
+            if not dry_run:
+                delete_job(job.id)
+                print(f"❌ DELETED - does not meet location criteria")
+            else:
+                print(f"❌ Would delete (dry-run)")
+            continue
+        
+        # Update statistics for kept jobs
         if location_label == "Seattle":
             stats["seattle"] += 1
         elif location_label == "Remote":
@@ -207,9 +221,11 @@ def process_jobs(job_ids=None, dry_run=False):
     print(f"Seattle: {stats['seattle']}")
     print(f"Remote: {stats['remote']}")
     print(f"Review for location: {stats['review']}")
+    print(f"Deleted: {stats['deleted']}")
     print(f"Pay ranges found: {stats['pay_found']}")
     print(f"Titles cleaned: {stats['title_cleaned']}")
     print(f"\nTotal processed: {len(jobs)}")
+    print(f"Total kept: {stats['seattle'] + stats['remote'] + stats['review']}")
     
     if dry_run:
         print("\n(DRY RUN - no changes made)")

@@ -118,6 +118,31 @@ h2 {
     font-weight: 600;
 }
 
+/* Location labels */
+.location-label {
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.location-seattle {
+    background-color: #3498db;
+    color: white;
+}
+
+.location-remote {
+    background-color: #27ae60;
+    color: white;
+}
+
+.location-review-for-location {
+    background-color: #f39c12;
+    color: white;
+}
+
+
 /* Filters */
 .filters {
     background: white;

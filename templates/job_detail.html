@@ -32,6 +32,11 @@
             <strong>Posted:</strong> {{ job.posted_date }}
         </div>
         {% endif %}
+        {% if job.location_label %}
+        <div class="info-row">
+            <strong>Location:</strong> <span class="location-label location-{{ job.location_label|lower|replace(' ', '-') }}">{{ job.location_label }}</span>
+        </div>
+        {% endif %}
         <div class="info-row">
             <strong>URL:</strong> <a href="{{ job.url }}" target="_blank">{{ job.url }}</a>
         </div>
