@@ -139,6 +139,44 @@ python profile_import.py --profile path/to/profile.md  # Custom path
 
 **Note**: Run once to populate your profile. Re-running will duplicate entries unless you clear tables first.
 
+#### `job_analyzer.py`
+**LLM-powered job analyzer** - uses GPT-4o to filter jobs and extract structured data.
+
+**Purpose**: Automatically filters jobs by location eligibility and extracts pay range information from descriptions.
+
+**Location logic**:
+- **Keep**: Seattle metro area (within 20 miles of zip code 98117)
+- **Keep**: Truly remote positions (verified by reading full description)
+- **Delete**: Jobs that clearly don't meet criteria
+- **Uncertain**: When unclear, defaults to keeping the job
+- Reads entire posting to catch contradictions (e.g., "remote" in title but "onsite required" in description)
+
+**Seattle metro cities**: Seattle, Bellevue, Redmond, Kirkland, Bothell, Renton, Kent, Federal Way, Sammamish, Issaquah
+
+**Features**:
+- Extracts pay range from descriptions when provided
+- Cleans up title formatting issues (e.g., missing spaces after job numbers)
+- Provides decision reasoning for each job (KEEP, DELETE, or UNCERTAIN)
+- Stores pay range by appending to description: `[Pay Range: ...]`
+- Batch processing with progress reporting and summary statistics
+
+**Usage**:
+```bash
+python job_analyzer.py                  # Analyze all 'new' jobs
+python job_analyzer.py --job-id 123     # Analyze specific job
+python job_analyzer.py --dry-run        # Test without modifying database
+```
+
+**Output**:
+- Deletes jobs that clearly don't meet location criteria
+- Updates job titles if formatting issues detected
+- Appends pay range to descriptions when found
+- Prints summary: jobs analyzed, kept, deleted, uncertain
+
+**API requirement**: Requires `OPENAI_API_KEY` environment variable (uses GPT-4o model).
+
+**Integration**: Automatically runs after job fetch in `run_pipeline.py` (can be skipped with `--skip-analyzer`).
+
 #### `run_pipeline.py`
 **Unified job search pipeline** - orchestrates fetching from all sources and stores directly to database.
 
@@ -146,19 +184,22 @@ python profile_import.py --profile path/to/profile.md  # Custom path
 - Fetches from RSS feeds and web search in a single run
 - Stores directly to database (no intermediate CSV files)
 - Automatic deduplication via URL (database handles this with upserts)
+- Runs job analyzer automatically after fetch (LLM-powered filtering and data extraction)
 - Command-line options for selective execution
 - Progress reporting and summary statistics
 
 **Usage**:
 ```bash
-python run_pipeline.py              # Full run (RSS + web search)
-python run_pipeline.py --rss-only   # RSS feeds only (no API key needed)
-python run_pipeline.py --search-only # Web search only (requires OPENAI_API_KEY)
+python run_pipeline.py                  # Full run (RSS + web search + analyzer)
+python run_pipeline.py --rss-only       # RSS feeds only (no API key needed)
+python run_pipeline.py --search-only    # Web search only (requires OPENAI_API_KEY)
+python run_pipeline.py --skip-analyzer  # Skip LLM analyzer step
 ```
 
 **Output**:
 - Stores jobs directly to `job_search.db`
-- Reports jobs fetched, jobs upserted, and database summary
+- Runs analyzer to filter by location and extract pay ranges
+- Reports jobs fetched, jobs upserted, analyzer results, and database summary
 - Execution time and statistics
 
 **Note**: This is the recommended way to fetch jobs instead of running individual scripts.
@@ -246,29 +287,47 @@ pip install pandas feedparser openai openai-agents
 ### 1. **Run the unified pipeline (RECOMMENDED)**
 ```bash
 python run_pipeline.py
-# Fetches from RSS + web search, stores directly to database
+# Fetches from RSS + web search + runs analyzer
+# Stores directly to database, filters by location, extracts pay ranges
 # Output: Updates job_search.db with new jobs
 ```
 
 Options:
 ```bash
-python run_pipeline.py --rss-only   # RSS feeds only (faster, no API key)
-python run_pipeline.py --search-only # Web search only (requires OPENAI_API_KEY)
+python run_pipeline.py --rss-only       # RSS feeds only (faster, no API key)
+python run_pipeline.py --search-only    # Web search only (requires OPENAI_API_KEY)
+python run_pipeline.py --skip-analyzer  # Skip LLM analyzer (faster, keeps all jobs)
 ```
 
-### 2. **Import profile data (one-time setup)**
+### 2. **Analyze jobs with LLM (location filtering + pay extraction)**
+```bash
+python job_analyzer.py
+# Analyzes all 'new' jobs: filters by location, extracts pay ranges
+# Uses GPT-4o to read entire posting and make intelligent decisions
+```
+
+Options:
+```bash
+python job_analyzer.py --job-id 123  # Analyze specific job
+python job_analyzer.py --dry-run     # Test without modifying database
+```
+
+**Note**: The analyzer runs automatically in `run_pipeline.py` unless you use `--skip-analyzer`.
+
+### 3. **Import profile data (one-time setup)**
 ```bash
 python profile_import.py
 # Imports resumes/LinkedIn_Profile.md into database
 ```
 
-### 3. **Filter by location**
+### 4. **Filter by location (legacy, rule-based)**
 ```bash
 python filter_jobs_by_location.py
 # Removes non-Seattle/non-remote jobs from database
+# Note: job_analyzer.py is recommended instead (LLM-powered, more accurate)
 ```
 
-### 4. **Query database programmatically**
+### 5. **Query database programmatically**
 ```python
 from db.connection import get_db
 from db.jobs import list_jobs
@@ -284,7 +343,7 @@ from db.jobs import get_job
 job = get_job(123)
 ```
 
-### 5. **Run database smoke tests**
+### 6. **Run database smoke tests**
 ```bash
 python -m db.smoke_test
 # Tests all database operations with temp database
@@ -493,11 +552,17 @@ Based on codebase structure and comments:
 
 ```bash
 # Run unified pipeline (RECOMMENDED)
-python run_pipeline.py              # Full run (RSS + web search)
-python run_pipeline.py --rss-only   # RSS only
-python run_pipeline.py --search-only # Web search only
+python run_pipeline.py                  # Full run (RSS + web search + analyzer)
+python run_pipeline.py --rss-only       # RSS only
+python run_pipeline.py --search-only    # Web search only
+python run_pipeline.py --skip-analyzer  # Skip LLM analyzer
 
-# Filter by location
+# Analyze jobs (LLM-powered location filtering + pay extraction)
+python job_analyzer.py                  # Analyze all 'new' jobs
+python job_analyzer.py --job-id 123     # Analyze specific job
+python job_analyzer.py --dry-run        # Test without DB changes
+
+# Filter by location (legacy rule-based)
 python filter_jobs_by_location.py
 
 # Test database
