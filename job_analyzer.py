@@ -74,13 +74,20 @@ Your tasks:
    - "Not specified" - Cannot determine from posting
 
 3. PAY RANGE: Extract salary/compensation information with time period
-   - For salaried: "$100,000-$150,000/year" or "$100K-$150K/year"
-   - For hourly: "$50-75/hour" or "$50-$75/hr"
+   - For salaried/full-time: "$100,000-$150,000/year" or "$100K-$150K/year"
+   - For hourly/contract: "$50-75/hour" or "$50-$75/hr"
    - Look for: salary, compensation, pay rate, hourly rate, annual salary, base pay
    - Include currency symbol ($) and time period (/year, /hour, /yr, /hr)
    - Return "NOT_SPECIFIED" if no pay information found
 
-4. TITLE CLEANUP: Fix any formatting issues in the title
+4. CONTRACT DURATION: For contract jobs only, extract contract length
+   - Look for: "3 month contract", "6 months", "12-month", "1 year contract"
+   - Look for: "contract to hire", "C2H", "temp to perm"
+   - Format examples: "3 months", "6 months", "12 months", "Contract-to-hire"
+   - Return "NOT_SPECIFIED" if not a contract job or duration not mentioned
+   - Only relevant for Contract job types
+
+5. TITLE CLEANUP: Fix any formatting issues in the title
    - Add spaces where missing (e.g., "R0232726Technical Writer" → "R0232726 Technical Writer")
    - Fix obvious concatenation issues
    - Return cleaned title or original if no issues
@@ -91,6 +98,7 @@ Return ONLY valid JSON (no markdown):
   "location_reasoning": "Brief explanation of your decision based on reading the ENTIRE posting",
   "job_type": "Full-time|Contract|Part-time|Not specified",
   "pay_range": "extracted pay with time period or NOT_SPECIFIED",
+  "contract_duration": "duration for contracts (e.g., '6 months', 'Contract-to-hire') or NOT_SPECIFIED",
   "title_cleaned": "cleaned title text"
 }}
 """
@@ -125,6 +133,7 @@ def analyze_job(job) -> dict:
             "location_reasoning": f"Analysis failed: {str(e)}",
             "job_type": "Not specified",
             "pay_range": "NOT_SPECIFIED",
+            "contract_duration": "NOT_SPECIFIED",
             "title_cleaned": job.title
         }
 
@@ -163,12 +172,15 @@ def process_jobs(job_ids=None, dry_run=False):
         reasoning = analysis.get("location_reasoning", "")
         job_type = analysis.get("job_type", "Not specified")
         pay_range = analysis.get("pay_range", "NOT_SPECIFIED")
+        contract_duration = analysis.get("contract_duration", "NOT_SPECIFIED")
         title_cleaned = analysis.get("title_cleaned", job.title)
         
         print(f"Location: {location_label}")
         print(f"Reasoning: {reasoning}")
         print(f"Job Type: {job_type}")
         print(f"Pay: {pay_range}")
+        if contract_duration != "NOT_SPECIFIED":
+            print(f"Contract Duration: {contract_duration}")
         
         if title_cleaned != job.title:
             print(f"Title cleaned: {title_cleaned}")
@@ -213,6 +225,11 @@ def process_jobs(job_ids=None, dry_run=False):
                 conn.execute("UPDATE jobs SET pay_range = ? WHERE id = ?", (pay_range, job.id))
                 updates.append("pay_range")
             
+            # Update contract duration
+            if contract_duration != "NOT_SPECIFIED":
+                conn.execute("UPDATE jobs SET contract_duration = ? WHERE id = ?", (contract_duration, job.id))
+                updates.append("contract_duration")
+            
             # Update title if cleaned
             if title_cleaned != job.title:
                 conn.execute("UPDATE jobs SET title = ? WHERE id = ?", (title_cleaned, job.id))
@@ -224,7 +241,10 @@ def process_jobs(job_ids=None, dry_run=False):
             else:
                 print(f"✓ No updates needed")
         else:
-            print(f"✓ Would update location_label to '{location_label}', job_type to '{job_type}', pay_range to '{pay_range}' (dry-run)")
+            dry_run_msg = f"✓ Would update: location_label='{location_label}', job_type='{job_type}', pay_range='{pay_range}'"
+            if contract_duration != "NOT_SPECIFIED":
+                dry_run_msg += f", contract_duration='{contract_duration}'"
+            print(f"{dry_run_msg} (dry-run)")
     
     # Print summary
     print(f"\n{'='*60}")

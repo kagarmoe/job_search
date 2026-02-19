@@ -44,7 +44,21 @@
         {% endif %}
         {% if job.pay_range %}
         <div class="info-row">
-            <strong>Pay Range:</strong> <span class="pay-range">{{ job.pay_range }}</span>
+            <strong>
+                {% if job.job_type == 'Full-time' %}
+                Salary Range:
+                {% elif job.job_type == 'Contract' %}
+                Hourly Rate:
+                {% else %}
+                Pay Range:
+                {% endif %}
+            </strong>
+            <span class="pay-range">{{ job.pay_range }}</span>
+        </div>
+        {% endif %}
+        {% if job.contract_duration and job.job_type == 'Contract' %}
+        <div class="info-row">
+            <strong>Contract Duration:</strong> <span class="contract-duration">{{ job.contract_duration }}</span>
         </div>
         {% endif %}
         <div class="info-row">

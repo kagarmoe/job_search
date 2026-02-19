@@ -82,7 +82,12 @@
                 <span class="job-type">{{ job.job_type }}</span>
             {% endif %}
             {% if job.pay_range %}
-                <span class="pay-range">{{ job.pay_range }}</span>
+                <span class="pay-range">
+                    {{ job.pay_range }}
+                    {% if job.contract_duration and job.job_type == 'Contract' %}
+                        ({{ job.contract_duration }})
+                    {% endif %}
+                </span>
             {% endif %}
             {% if job.score %}
                 <span class="score">Score: {{ job.score }}/10</span>

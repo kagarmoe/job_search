@@ -20,6 +20,7 @@ class Job:
     location_label: str | None = None
     job_type: str | None = None
     pay_range: str | None = None
+    contract_duration: str | None = None
     resume_md: str | None = None
     resume_pdf_path: str | None = None
     cover_letter_md: str | None = None
