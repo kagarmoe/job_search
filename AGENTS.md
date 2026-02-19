@@ -447,8 +447,53 @@ See `archive/README.md` for details and historical usage.
 
 ## Git Workflow
 
-**Main branch**: `main` (default branch for production code)  
+⚠️ **CRITICAL: NEVER PUSH DIRECTLY TO MAIN** ⚠️
+
+**This project requires ALL changes to go through Pull Requests. Direct pushes to main are forbidden.**
+
+**Main branch**: `main` (protected - requires PR for all changes)  
 **CI/CD**: GitHub Actions workflow for Beadspace deployment (`.github/workflows/beadspace.yml`)
+
+### Workflow Requirements
+
+**ALWAYS follow this workflow:**
+
+1. **Create a feature branch** from main
+2. **Make changes** on the feature branch
+3. **Commit** with conventional commit format
+4. **Push** the feature branch to remote
+5. **Create a Pull Request** to merge into main
+6. **Merge** via PR (never push directly to main)
+
+**Branch naming convention:**
+- `feat/description` - New features
+- `fix/description` - Bug fixes
+- `docs/description` - Documentation changes
+- `refactor/description` - Code refactoring
+- `chore/description` - Maintenance tasks
+
+**Example workflow:**
+```bash
+# Start new work
+git checkout main
+git pull job_search main
+git checkout -b feat/add-new-analyzer
+
+# Make changes and commit
+git add .
+git commit -m "feat(analyzer): add new analysis feature"
+
+# Push feature branch
+git push -u job_search feat/add-new-analyzer
+
+# Create PR (see PR creation section below)
+gh pr create --title "feat(analyzer): add new analysis feature" --body "..."
+
+# After PR is merged, clean up
+git checkout main
+git pull job_search main
+git branch -d feat/add-new-analyzer
+```
 
 ### Commit Message Format
 
@@ -503,10 +548,22 @@ Assisted-by: Claude Sonnet 4.5 via Crush <crush@charm.land>
 
 ### Creating Pull Requests
 
+⚠️ **NEVER push directly to main. ALWAYS create a PR.** ⚠️
+
 Use GitHub CLI (`gh`) to create PRs. Both title and body must follow conventional commit format.
+
+**Workflow:**
+1. Create and work on a feature branch
+2. Push the feature branch to remote
+3. Create a PR to merge into main
+4. Never push directly to main
 
 **Command structure**:
 ```bash
+# Push your feature branch first
+git push -u job_search feat/your-feature-name
+
+# Then create PR
 gh pr create --title "<type>(<scope>): <description>" --body "$(cat <<'EOF'
 ## Summary
 
@@ -531,6 +588,8 @@ EOF
 ```
 
 **Important**:
+- **NEVER** use `git push job_search main` - this pushes directly to main (forbidden)
+- ALWAYS push your feature branch: `git push -u job_search feat/feature-name`
 - PR title uses conventional commit format (same as commit messages)
 - Use HEREDOC (`$(cat <<'EOF' ... EOF)`) for multi-line body
 - Quote the entire body to preserve formatting
@@ -539,20 +598,44 @@ EOF
 
 **Example**:
 ```bash
-# Push branch
-git push -u job_search feat-analyzer
+# Create feature branch
+git checkout -b feat/analyzer-improvements
+
+# Make changes and commit
+git add .
+git commit -m "feat(analyzer): improve location detection"
+
+# Push FEATURE BRANCH (not main!)
+git push -u job_search feat/analyzer-improvements
 
 # Create PR
-gh pr create --title "feat(analyzer): add LLM-powered job analysis" --body "$(cat <<'EOF'
+gh pr create --title "feat(analyzer): improve location detection" --body "$(cat <<'EOF'
 ## Summary
 
-Implements intelligent job filtering using GPT-4o.
+Improves location detection accuracy for remote jobs.
 
 ### Features Added
 
-- LLM-based location verification
-- Pay range extraction
-- Integration with pipeline
+- Enhanced remote job detection
+- Better handling of hybrid roles
+- Improved error messages
+
+### Technical Details
+
+Commands:
+\`\`\`bash
+python job_analyzer.py
+\`\`\`
+
+### Documentation
+
+Updated AGENTS.md with new detection logic.
+
+
+💘 Generated with Crush
+EOF
+)"
+```
 
 ### Technical Details
 
