@@ -210,6 +210,9 @@ See [db/schema.py](db/schema.py) for full schema.
 ```bash
 # Run database smoke tests
 python -m db.smoke_test
+
+# Run project integrity tests
+python test_project.py
 ```
 
 ## Issue Tracking

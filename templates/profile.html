@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Job Search{% endblock %}
+
+{% block content %}
+<h1>Profile</h1>
+
+<section class="profile-section">
+    <h2>Contact Information</h2>
+    <div class="profile-info">
+        {% if profile.name %}
+        <div class="info-row"><strong>Name:</strong> {{ profile.name }}</div>
+        {% endif %}
+        {% if profile.title %}
+        <div class="info-row"><strong>Title:</strong> {{ profile.title }}</div>
+        {% endif %}
+        {% if profile.location %}
+        <div class="info-row"><strong>Location:</strong> {{ profile.location }}</div>
+        {% endif %}
+        {% if profile.email %}
+        <div class="info-row"><strong>Email:</strong> {{ profile.email }}</div>
+        {% endif %}
+        {% if profile.linkedin %}
+        <div class="info-row"><strong>LinkedIn:</strong> <a href="{{ profile.linkedin }}" target="_blank">View Profile</a></div>
+        {% endif %}
+        {% if profile.github %}
+        <div class="info-row"><strong>GitHub:</strong> <a href="{{ profile.github }}" target="_blank">View Profile</a></div>
+        {% endif %}
+    </div>
+</section>
+
+{% if profile.summary %}
+<section class="profile-section">
+    <h2>Summary</h2>
+    <p>{{ profile.summary }}</p>
+</section>
+{% endif %}
+
+{% if skills %}
+<section class="profile-section">
+    <h2>Skills</h2>
+    <div class="skills-grid">
+        {% for skill in skills %}
+        <div class="skill-item">
+            <strong>{{ skill.name }}</strong>
+            <span class="skill-category">{{ skill.category }}</span>
+            {% if skill.proficiency %}
+            <span class="skill-proficiency">{{ skill.proficiency }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if job_history %}
+<section class="profile-section">
+    <h2>Work Experience</h2>
+    {% for job in job_history %}
+    <div class="job-history-item">
+        <h3>{{ job.title }} at {{ job.company }}</h3>
+        <div class="job-dates">
+            {% if job.start_date %}{{ job.start_date }}{% endif %}
+            {% if job.end_date %} - {{ job.end_date }}{% elif job.start_date %} - Present{% endif %}
+        </div>
+        {% if job.location %}
+        <div class="job-location">{{ job.location }}</div>
+        {% endif %}
+        {% if job.description %}
+        <p class="job-description">{{ job.description }}</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

@@ -425,11 +425,17 @@ See `archive/README.md` for details and historical usage.
 
 ## Testing
 
-**Smoke test**: `python -m db.smoke_test`
+**Database smoke test**: `python -m db.smoke_test`
 - Tests all database operations (CRUD, upserts, filters, constraints)
 - Uses temporary database (no pollution of project data)
 - Comprehensive assertions for all operations
 - ~150 lines, covers all major functionality
+
+**Project integrity test**: `python test_project.py`
+- Verifies critical files exist (app.py, job_analyzer.py, templates, etc.)
+- Tests that app.py can be imported
+- Ensures no accidental file deletions
+- Quick sanity check for project completeness
 
 **No automated tests for scripts** - manual testing required for:
 - RSS feed fetching
@@ -565,8 +571,9 @@ python job_analyzer.py --dry-run        # Test without DB changes
 # Filter by location (legacy rule-based)
 python filter_jobs_by_location.py
 
-# Test database
+# Test database and project integrity
 python -m db.smoke_test
+python test_project.py
 
 # Activate virtual environment
 source .venv/bin/activate  # macOS/Linux
