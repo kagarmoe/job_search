@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ job.title }} - Job Search{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">← Back to Jobs</a>
+</div>
+
+<article class="job-detail">
+    <header class="job-detail-header">
+        <h1>{{ job.title }}</h1>
+        <div class="job-detail-meta">
+            <span class="status-badge status-{{ job.status }}">{{ job.status }}</span>
+            {% if job.score %}
+                <span class="score-badge">{{ job.score }}/10</span>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="job-info">
+        <div class="info-row">
+            <strong>Source:</strong> {{ job.source or 'Unknown' }}
+        </div>
+        {% if job.feed %}
+        <div class="info-row">
+            <strong>Feed:</strong> {{ job.feed }}
+        </div>
+        {% endif %}
+        {% if job.posted_date %}
+        <div class="info-row">
+            <strong>Posted:</strong> {{ job.posted_date }}
+        </div>
+        {% endif %}
+        <div class="info-row">
+            <strong>URL:</strong> <a href="{{ job.url }}" target="_blank">{{ job.url }}</a>
+        </div>
+    </div>
+
+    {% if job.description %}
+    <section class="job-description">
+        <h2>Description</h2>
+        <div class="description-content">{{ job.description|strip_html }}</div>
+    </section>
+    {% endif %}
+
+    {% if job.score_rationale %}
+    <section class="score-rationale">
+        <h2>Score Rationale</h2>
+        <p>{{ job.score_rationale }}</p>
+    </section>
+    {% endif %}
+
+    <section class="job-actions-section">
+        <h2>Actions</h2>
+        
+        <form class="action-form" id="status-form">
+            <label for="status">Update Status:</label>
+            <select name="status" id="status">
+                <option value="new" {% if job.status == 'new' %}selected{% endif %}>New</option>
+                <option value="reviewed" {% if job.status == 'reviewed' %}selected{% endif %}>Reviewed</option>
+                <option value="applied" {% if job.status == 'applied' %}selected{% endif %}>Applied</option>
+                <option value="rejected" {% if job.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                <option value="offer" {% if job.status == 'offer' %}selected{% endif %}>Offer</option>
+            </select>
+            <button type="submit" class="btn-primary">Update</button>
+        </form>
+
+        <form class="action-form" id="score-form">
+            <label for="score">Score (0-10):</label>
+            <input type="number" name="score" id="score" min="0" max="10" step="0.5" 
+                   value="{{ job.score if job.score else '' }}" required>
+            <label for="rationale">Rationale:</label>
+            <textarea name="rationale" id="rationale" rows="3">{{ job.score_rationale or '' }}</textarea>
+            <button type="submit" class="btn-primary">Save Score</button>
+        </form>
+    </section>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Update status via AJAX
+document.getElementById('status-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    const response = await fetch('{{ url_for("update_job_status", job_id=job.id) }}', {
+        method: 'POST',
+        body: formData
+    });
+    
+    if (response.ok) {
+        const data = await response.json();
+        location.reload(); // Reload to show updated status
+    } else {
+        alert('Error updating status');
+    }
+});
+
+// Update score via AJAX
+document.getElementById('score-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    const response = await fetch('{{ url_for("update_job_score", job_id=job.id) }}', {
+        method: 'POST',
+        body: formData
+    });
+    
+    if (response.ok) {
+        const data = await response.json();
+        alert('Score saved: ' + data.score + '/10');
+        location.reload();
+    } else {
+        alert('Error updating score');
+    }
+});
+</script>
+{% endblock %}

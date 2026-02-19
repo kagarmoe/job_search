@@ -34,13 +34,24 @@ pip install pandas feedparser openai openai-agents
 ```bash
 python run_pipeline.py
 ```
-Fetches from RSS feeds + web search (requires `OPENAI_API_KEY` environment variable).
+Fetches from RSS feeds + web search + runs LLM analyzer (requires `OPENAI_API_KEY` environment variable).
 
-**RSS feeds only (recommended for quick runs):**
+The analyzer automatically:
+- Filters jobs by location (Seattle metro within 20 miles OR fully remote)
+- Extracts pay range information from descriptions
+- Cleans up title formatting issues
+
+**RSS feeds only (no analyzer):**
 ```bash
-python run_pipeline.py --rss-only
+python run_pipeline.py --rss-only --skip-analyzer
 ```
-No API key needed, fetches from configured RSS feeds.
+No API key needed, fetches from configured RSS feeds without LLM analysis.
+
+**Skip analyzer (keep all jobs):**
+```bash
+python run_pipeline.py --skip-analyzer
+```
+Fetches jobs but skips intelligent filtering and pay extraction.
 
 **Web search only:**
 ```bash
@@ -81,12 +92,31 @@ sqlite3 job_search.db "SELECT title, source, posted_date FROM jobs ORDER BY post
 sqlite3 job_search.db "SELECT status, COUNT(*) FROM jobs GROUP BY status;"
 ```
 
-### Filter jobs by location
+### Analyze jobs with LLM
+
+```bash
+python job_analyzer.py
+```
+Analyzes all 'new' jobs using GPT-4o:
+- Filters by location (Seattle metro OR fully remote)
+- Extracts and displays pay range information
+- Reads entire posting to catch contradictions
+- Provides decision reasoning (KEEP, DELETE, or UNCERTAIN)
+
+**Options:**
+```bash
+python job_analyzer.py --job-id 123  # Analyze specific job
+python job_analyzer.py --dry-run     # Test without modifying database
+```
+
+**Note**: The analyzer runs automatically in `run_pipeline.py` unless you use `--skip-analyzer`.
+
+### Filter jobs by location (legacy)
 
 ```bash
 python filter_jobs_by_location.py
 ```
-Keeps only Seattle metro area and truly remote jobs. **Warning**: Deletes non-matching jobs from database.
+Rule-based location filter. **Recommendation**: Use `job_analyzer.py` instead for more accurate LLM-powered filtering.
 
 ### Import profile data
 
@@ -116,10 +146,11 @@ good_jobs = list_jobs(min_score=7.0, order_by="score DESC")
 
 ## Project Structure
 
-- `run_pipeline.py` - Main entry point for job fetching
+- `run_pipeline.py` - Main entry point for job fetching (includes analyzer)
+- `job_analyzer.py` - LLM-powered job filtering and pay extraction
 - `rss_job_feed.py` - RSS feed parser
 - `startup_search.py` - Web search integration
-- `filter_jobs_by_location.py` - Location filter utility
+- `filter_jobs_by_location.py` - Legacy location filter utility
 - `profile_import.py` - Import LinkedIn profile to database
 - `db/` - Database layer (schema, models, CRUD operations)
 - `jobs/` - Legacy CSV files
@@ -141,9 +172,19 @@ Edit `startup_search.py` to customize:
 
 ### Location Preferences
 
-Edit `filter_jobs_by_location.py` to customize:
+**Recommended**: Use `job_analyzer.py` for LLM-powered location filtering.
+
+**Legacy option**: Edit `filter_jobs_by_location.py` to customize:
 - `SEATTLE_METRO` - Cities to keep
 - `REMOTE_POSITIVE` / `REMOTE_NEGATIVE` - Remote detection patterns
+
+### Job Analyzer
+
+The analyzer uses GPT-4o to intelligently filter jobs:
+- **Location criteria**: Within 20 miles of Seattle (98117) OR fully remote
+- **Pay extraction**: Finds and formats salary information from descriptions
+- **Smart reading**: Reads entire posting to catch contradictions
+- **Configurable**: Modify prompt in `job_analyzer.py` to adjust criteria
 
 ## Documentation
 
@@ -169,6 +210,9 @@ See [db/schema.py](db/schema.py) for full schema.
 ```bash
 # Run database smoke tests
 python -m db.smoke_test
+
+# Run project integrity tests
+python test_project.py
 ```
 
 ## Issue Tracking

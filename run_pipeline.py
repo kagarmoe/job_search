@@ -125,6 +125,11 @@ def main():
         action="store_true",
         help="Run only web search",
     )
+    parser.add_argument(
+        "--skip-analyzer",
+        action="store_true",
+        help="Skip LLM job analysis step",
+    )
     args = parser.parse_args()
     
     # Validate arguments
@@ -167,11 +172,28 @@ def main():
     print(f"Jobs fetched: {total_fetched}")
     print(f"Jobs upserted: {total_upserted}")
     
+    # Run LLM analyzer unless skipped
+    if not args.skip_analyzer:
+        print("\n" + "=" * 60)
+        print("RUNNING JOB ANALYZER")
+        print("=" * 60)
+        print("Analyzing new jobs with LLM for location and pay extraction...")
+        
+        try:
+            # Import here to avoid requiring OpenAI when skipping
+            from job_analyzer import process_jobs
+            process_jobs(dry_run=False)
+        except ImportError as e:
+            print(f"Warning: Could not import job_analyzer: {e}")
+        except Exception as e:
+            print(f"Warning: Job analyzer failed: {e}")
+            print("Continuing without analysis...")
+    
     # Database stats
     job_count = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
     new_count = conn.execute("SELECT COUNT(*) FROM jobs WHERE status = 'new'").fetchone()[0]
     
-    print(f"\nDatabase summary:")
+    print(f"\nFinal database summary:")
     print(f"  Total jobs: {job_count}")
     print(f"  New/unreviewed: {new_count}")
     

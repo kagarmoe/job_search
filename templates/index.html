@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Jobs - Job Search{% endblock %}
+
+{% block content %}
+<h1>Job Listings</h1>
+
+<div class="stats">
+    {% for status, count in status_counts.items() %}
+        <span class="stat-badge status-{{ status }}">{{ status }}: {{ count }}</span>
+    {% endfor %}
+</div>
+
+<form class="filters" method="get" action="{{ url_for('index') }}">
+    <div class="filter-group">
+        <label for="status">Status:</label>
+        <select name="status" id="status">
+            <option value="">All</option>
+            <option value="new" {% if status_filter == 'new' %}selected{% endif %}>New</option>
+            <option value="reviewed" {% if status_filter == 'reviewed' %}selected{% endif %}>Reviewed</option>
+            <option value="applied" {% if status_filter == 'applied' %}selected{% endif %}>Applied</option>
+            <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+            <option value="offer" {% if status_filter == 'offer' %}selected{% endif %}>Offer</option>
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label for="source">Source:</label>
+        <select name="source" id="source">
+            <option value="">All</option>
+            {% for src in sources %}
+                <option value="{{ src }}" {% if source_filter == src %}selected{% endif %}>{{ src }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label for="min_score">Min Score:</label>
+        <input type="number" name="min_score" id="min_score" min="0" max="10" step="0.5" 
+               value="{{ min_score if min_score else '' }}" placeholder="0-10">
+    </div>
+
+    <div class="filter-group">
+        <label for="order_by">Sort:</label>
+        <select name="order_by" id="order_by">
+            <option value="posted_date DESC" {% if order_by == 'posted_date DESC' %}selected{% endif %}>Newest First</option>
+            <option value="posted_date ASC" {% if order_by == 'posted_date ASC' %}selected{% endif %}>Oldest First</option>
+            <option value="score DESC" {% if order_by == 'score DESC' %}selected{% endif %}>Highest Score</option>
+            <option value="score ASC" {% if order_by == 'score ASC' %}selected{% endif %}>Lowest Score</option>
+            <option value="title ASC" {% if order_by == 'title ASC' %}selected{% endif %}>Title A-Z</option>
+        </select>
+    </div>
+
+    <button type="submit" class="btn-primary">Filter</button>
+    <a href="{{ url_for('index') }}" class="btn-secondary">Clear</a>
+</form>
+
+<div class="job-count">{{ jobs|length }} jobs</div>
+
+<div class="job-list">
+    {% for job in jobs %}
+    <div class="job-card">
+        <div class="job-header">
+            <h3><a href="{{ url_for('job_detail', job_id=job.id) }}">{{ job.title }}</a></h3>
+            <div class="job-badges">
+                <span class="status-badge status-{{ job.status }}">{{ job.status }}</span>
+                {% if is_recent_job(job.posted_date) and job.status == 'new' %}
+                <span class="new-badge">24h</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="job-meta">
+            <span class="source">{{ job.source }}</span>
+            {% if job.posted_date %}
+                <span class="date">{{ job.posted_date }}</span>
+            {% endif %}
+            {% if job.score %}
+                <span class="score">Score: {{ job.score }}/10</span>
+            {% endif %}
+        </div>
+
+        {% if job.description %}
+        <p class="job-description">{{ job.description|strip_html|truncate(200) }}</p>
+        {% endif %}
+
+        <div class="job-actions">
+            <a href="{{ job.url }}" target="_blank" class="btn-link">View Posting</a>
+            <a href="{{ url_for('job_detail', job_id=job.id) }}" class="btn-link">Details</a>
+        </div>
+    </div>
+    {% else %}
+    <p class="no-results">No jobs found. Try adjusting your filters.</p>
+    {% endfor %}
+</div>
+{% endblock %}
