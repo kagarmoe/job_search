@@ -40,7 +40,7 @@
     {% if job.description %}
     <section class="job-description">
         <h2>Description</h2>
-        <div class="description-content">{{ job.description|striptags }}</div>
+        <div class="description-content">{{ job.description|strip_html }}</div>
     </section>
     {% endif %}
 

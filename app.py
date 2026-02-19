@@ -12,6 +12,7 @@ Usage:
     # Then visit http://localhost:5000
 """
 
+import re
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from db.connection import get_db
@@ -40,8 +41,45 @@ def is_recent_job(posted_date_str):
         return False
 
 
-# Make helper function available in templates
+def strip_html_with_spacing(text):
+    """Strip HTML tags and add proper spacing.
+    
+    - Adds space before block-level tags
+    - Adds space after closing tags
+    - Adds space after terminal punctuation (., !, ?)
+    - Collapses multiple spaces into one
+    """
+    if not text:
+        return ""
+    
+    # Add space before block-level opening tags
+    block_tags = r'<(p|div|h[1-6]|li|tr|td|th|br|hr|blockquote|pre|ul|ol|section|article|header|footer|nav|aside)'
+    text = re.sub(block_tags, r' <\1', text, flags=re.IGNORECASE)
+    
+    # Add space after closing tags
+    text = re.sub(r'</[^>]+>', r'\g<0> ', text)
+    
+    # Add space after <br> self-closing tags
+    text = re.sub(r'<br\s*/?\s*>', ' ', text, flags=re.IGNORECASE)
+    
+    # Strip all HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    
+    # Add space after terminal punctuation if not followed by space
+    text = re.sub(r'([.!?])([A-Z])', r'\1 \2', text)
+    
+    # Collapse multiple spaces into one
+    text = re.sub(r'\s+', ' ', text)
+    
+    # Strip leading/trailing whitespace
+    text = text.strip()
+    
+    return text
+
+
+# Make helper functions available in templates
 app.jinja_env.globals.update(is_recent_job=is_recent_job)
+app.jinja_env.filters['strip_html'] = strip_html_with_spacing
 
 
 @app.route('/')
