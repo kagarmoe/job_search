@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     score_rationale TEXT,
     status          TEXT NOT NULL DEFAULT 'new'
                         CHECK (status IN ('new', 'reviewed', 'applied', 'rejected', 'offer')),
+    location_label  TEXT CHECK (location_label IS NULL OR location_label IN ('Seattle', 'Remote', 'Review for location')),
     resume_md           TEXT,
     resume_pdf_path     TEXT,
     cover_letter_md     TEXT,
@@ -102,5 +103,6 @@ CREATE INDEX IF NOT EXISTS idx_jobs_status      ON jobs (status);
 CREATE INDEX IF NOT EXISTS idx_jobs_score       ON jobs (score);
 CREATE INDEX IF NOT EXISTS idx_jobs_posted_date ON jobs (posted_date);
 CREATE INDEX IF NOT EXISTS idx_jobs_status_score ON jobs (status, score DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_location_label ON jobs (location_label);
 CREATE INDEX IF NOT EXISTS idx_skills_category  ON skills (category);
 """

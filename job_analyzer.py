@@ -2,12 +2,14 @@
 """LLM-powered job analyzer for location verification and data extraction.
 
 Analyzes job postings to:
-1. Verify if job is truly Seattle-area (within 20 miles of 98117) or remote
+1. Verify if job is within 20 miles of 98117 (Seattle area) or truly remote
 2. Extract pay range information
 3. Clean up title formatting issues
 
-Jobs that clearly don't meet location criteria are marked for deletion.
-Uncertain cases are kept for manual review.
+Jobs are labeled:
+- "Seattle" - Within 20 miles of Seattle zip 98117
+- "Remote" - Clearly fully remote
+- "Review for location" - Agent is uncertain, needs manual review
 
 Usage:
     python job_analyzer.py              # Analyze all new jobs
@@ -30,28 +32,41 @@ client = OpenAI()
 SEATTLE_ZIP = "98117"
 SEATTLE_METRO_CITIES = ["Seattle", "Bellevue", "Redmond", "Kirkland", "Bothell", "Renton", "Kent", "Federal Way", "Sammamish", "Issaquah"]
 
-ANALYSIS_PROMPT = """You are analyzing a job posting to determine if it meets location criteria and extract key information.
+ANALYSIS_PROMPT = """You are analyzing a job posting to determine its location eligibility and extract key information.
 
-TARGET LOCATION: Within 20 miles of Seattle, WA (zip 98117) OR fully remote work allowed.
+CRITICAL: You MUST read the ENTIRE job posting carefully before making any decisions.
 
-Analyze this job posting carefully:
+TARGET CRITERIA:
+- Within 20 miles of Seattle, WA (zip code 98117), OR
+- Fully remote work (not hybrid, not occasional remote)
+
+Seattle metro area cities (within 20 miles): Seattle, Bellevue, Redmond, Kirkland, Bothell, Renton, Kent, Federal Way, Sammamish, Issaquah
+
+Analyze this job posting:
 
 TITLE: {title}
 DESCRIPTION: {description}
 SOURCE: {source}
 
 Your tasks:
-1. LOCATION DECISION: Determine if this job meets our criteria
-   - Read the ENTIRE posting carefully
-   - Look for location information in both title and description
-   - Pay special attention to remote work policies (some jobs claim remote in title but require onsite in description)
-   - Check for Seattle metro area locations: Seattle, Bellevue, Redmond, Kirkland, Bothell, etc.
-   - IMPORTANT: If a job says "remote" in title but then says "on-site required" or "hybrid with X days onsite in [far location]", it does NOT meet criteria
+
+1. LOCATION LABEL: Read the ENTIRE posting before deciding
+   - Check both title AND full description for location information
+   - Look for contradictions (e.g., "remote" in title but "onsite required" in description)
+   - Check for hybrid requirements (e.g., "3 days per week in San Francisco office")
+   - Verify if location is within Seattle metro OR if truly 100% remote
    
-   Return one of:
-   - "KEEP" - Clearly meets criteria (Seattle area OR truly remote)
-   - "DELETE" - Clearly does not meet criteria (wrong location, not remote)
-   - "UNCERTAIN" - Cannot determine from posting (keep for manual review)
+   Return one of these EXACT labels:
+   - "Seattle" - Job is clearly in Seattle metro area (within 20 miles of 98117)
+   - "Remote" - Job is clearly fully remote (not hybrid, no office requirement)
+   - "Review for location" - Cannot determine with certainty OR outside Seattle but not clearly remote
+
+   Examples:
+   - "Remote" in title but description says "must be in office 3 days/week in Austin" → "Review for location"
+   - Job in Bellevue, WA → "Seattle"
+   - Job says "100% remote, work from anywhere" → "Remote"
+   - Job in Portland, OR with no remote mention → "Review for location"
+   - Hybrid role → "Review for location"
 
 2. PAY RANGE: Extract any salary/compensation information
    - Look for: salary, compensation, pay rate, hourly rate, annual salary
@@ -65,11 +80,10 @@ Your tasks:
 
 Return ONLY valid JSON (no markdown):
 {{
-  "location_decision": "KEEP|DELETE|UNCERTAIN",
-  "location_reasoning": "Brief explanation of your decision",
+  "location_label": "Seattle|Remote|Review for location",
+  "location_reasoning": "Brief explanation of your decision based on reading the ENTIRE posting",
   "pay_range": "extracted pay or NOT_SPECIFIED",
-  "title_cleaned": "cleaned title text",
-  "remote_work": true|false|null
+  "title_cleaned": "cleaned title text"
 }}
 """
 
@@ -99,11 +113,10 @@ def analyze_job(job) -> dict:
     except Exception as e:
         print(f"Error analyzing job {job.id}: {e}")
         return {
-            "location_decision": "UNCERTAIN",
+            "location_label": "Review for location",
             "location_reasoning": f"Analysis failed: {str(e)}",
             "pay_range": "NOT_SPECIFIED",
-            "title_cleaned": job.title,
-            "remote_work": None
+            "title_cleaned": job.title
         }
 
 
@@ -121,9 +134,9 @@ def process_jobs(job_ids=None, dry_run=False):
     print(f"Analyzing {len(jobs)} jobs...")
     
     stats = {
-        "kept": 0,
-        "deleted": 0,
-        "uncertain": 0,
+        "seattle": 0,
+        "remote": 0,
+        "review": 0,
         "pay_found": 0,
         "title_cleaned": 0
     }
@@ -136,16 +149,14 @@ def process_jobs(job_ids=None, dry_run=False):
         # Analyze job
         analysis = analyze_job(job)
         
-        decision = analysis.get("location_decision", "UNCERTAIN")
+        location_label = analysis.get("location_label", "Review for location")
         reasoning = analysis.get("location_reasoning", "")
         pay_range = analysis.get("pay_range", "NOT_SPECIFIED")
         title_cleaned = analysis.get("title_cleaned", job.title)
-        remote_work = analysis.get("remote_work")
         
-        print(f"Decision: {decision}")
+        print(f"Location: {location_label}")
         print(f"Reasoning: {reasoning}")
         print(f"Pay: {pay_range}")
-        print(f"Remote: {remote_work}")
         
         if title_cleaned != job.title:
             print(f"Title cleaned: {title_cleaned}")
@@ -154,50 +165,48 @@ def process_jobs(job_ids=None, dry_run=False):
         if pay_range != "NOT_SPECIFIED":
             stats["pay_found"] += 1
         
-        # Take action based on decision
-        if decision == "DELETE":
-            stats["deleted"] += 1
-            if not dry_run:
-                delete_job(job.id)
-                print(f"❌ DELETED")
-            else:
-                print(f"❌ Would delete (dry-run)")
+        # Update statistics
+        if location_label == "Seattle":
+            stats["seattle"] += 1
+        elif location_label == "Remote":
+            stats["remote"] += 1
+        else:
+            stats["review"] += 1
         
-        elif decision == "KEEP":
-            stats["kept"] += 1
-            if not dry_run:
-                # Update job with cleaned title and pay info if found
-                updates = []
-                if title_cleaned != job.title:
-                    conn.execute("UPDATE jobs SET title = ? WHERE id = ?", (title_cleaned, job.id))
-                    updates.append("title")
-                
-                # Store pay range in description metadata or create a new field
-                # For now, we'll add it as a note at the end of description if not present
-                if pay_range != "NOT_SPECIFIED" and job.description and pay_range not in job.description:
-                    new_desc = f"{job.description}\n\n[Pay Range: {pay_range}]"
-                    conn.execute("UPDATE jobs SET description = ? WHERE id = ?", (new_desc, job.id))
-                    updates.append("pay")
-                
-                if updates:
-                    conn.commit()
-                    print(f"✓ KEPT (updated: {', '.join(updates)})")
-                else:
-                    print(f"✓ KEPT")
+        # Update job in database
+        if not dry_run:
+            updates = []
+            
+            # Update location label
+            conn.execute("UPDATE jobs SET location_label = ? WHERE id = ?", (location_label, job.id))
+            updates.append("location")
+            
+            # Update title if cleaned
+            if title_cleaned != job.title:
+                conn.execute("UPDATE jobs SET title = ? WHERE id = ?", (title_cleaned, job.id))
+                updates.append("title")
+            
+            # Store pay range in description if found
+            if pay_range != "NOT_SPECIFIED" and job.description and pay_range not in job.description:
+                new_desc = f"{job.description}\n\n[Pay Range: {pay_range}]"
+                conn.execute("UPDATE jobs SET description = ? WHERE id = ?", (new_desc, job.id))
+                updates.append("pay")
+            
+            if updates:
+                conn.commit()
+                print(f"✓ Updated: {', '.join(updates)}")
             else:
-                print(f"✓ Would keep (dry-run)")
-        
-        else:  # UNCERTAIN
-            stats["uncertain"] += 1
-            print(f"⚠️  UNCERTAIN - kept for manual review")
+                print(f"✓ No updates needed")
+        else:
+            print(f"✓ Would update location_label to '{location_label}' (dry-run)")
     
     # Print summary
     print(f"\n{'='*60}")
     print("ANALYSIS SUMMARY")
     print(f"{'='*60}")
-    print(f"Kept: {stats['kept']}")
-    print(f"Deleted: {stats['deleted']}")
-    print(f"Uncertain: {stats['uncertain']}")
+    print(f"Seattle: {stats['seattle']}")
+    print(f"Remote: {stats['remote']}")
+    print(f"Review for location: {stats['review']}")
     print(f"Pay ranges found: {stats['pay_found']}")
     print(f"Titles cleaned: {stats['title_cleaned']}")
     print(f"\nTotal processed: {len(jobs)}")
