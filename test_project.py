@@ -26,6 +26,7 @@ def test_critical_files_exist():
         "db/profile.py",
         "db/feeds.py",
         "db/schema.py",
+        "db/migrate_001_normalize.py",
         "templates/base.html",
         "templates/index.html",
         "templates/job_detail.html",
@@ -125,16 +126,137 @@ def test_rss_since_filtering():
     return True
 
 
+def test_location_filtering():
+    """Test is_seattle, is_us_wide, and is_truly_remote helpers."""
+    from filter_jobs_by_location import (
+        is_seattle, is_us_wide, is_truly_remote, SEATTLE_METRO,
+    )
+
+    # ── SEATTLE_METRO list completeness ──────────────────────────
+    expected_cities = {
+        "Seattle", "Bellevue", "Redmond", "Kirkland", "Bothell",
+        "Renton", "Kent", "Federal Way", "Sammamish", "Issaquah",
+        "Tacoma", "Olympia",
+    }
+    assert set(SEATTLE_METRO) == expected_cities, (
+        f"SEATTLE_METRO mismatch: missing={expected_cities - set(SEATTLE_METRO)}, "
+        f"extra={set(SEATTLE_METRO) - expected_cities}"
+    )
+    print(f"[PASS] SEATTLE_METRO contains all {len(expected_cities)} expected cities")
+
+    # ── is_seattle: every metro city in common title formats ─────
+    for city in SEATTLE_METRO:
+        assert is_seattle(f"Technical Writer in {city}, WA - Acme Corp"), (
+            f"is_seattle should match 'in {city}, WA - ...' but didn't"
+        )
+        assert is_seattle(f"Technical Writer in {city}, WA"), (
+            f"is_seattle should match 'in {city}, WA' at end but didn't"
+        )
+        assert is_seattle(f"Data Librarian ({city}, WA)"), (
+            f"is_seattle should match '({city}, WA)' but didn't"
+        )
+        assert is_seattle(f"Writer - {city}, WA"), (
+            f"is_seattle should match '- {city}, WA' but didn't"
+        )
+    print("[PASS] is_seattle() matches all SEATTLE_METRO cities in multiple title formats")
+
+    # ── is_seattle: non-metro cities should NOT match ────────────
+    assert not is_seattle("Technical Writer in San Francisco, CA")
+    assert not is_seattle("Technical Writer in Portland, OR")
+    assert not is_seattle("Technical Writer - Remote")
+    assert not is_seattle("Technical Writer")
+    assert not is_seattle("Technical Writer in Kent, OH")  # Kent OH, not Kent WA
+    print("[PASS] is_seattle() rejects non-metro cities")
+
+    # ── is_us_wide ───────────────────────────────────────────────
+    assert is_us_wide("Senior Writer in United States")
+    assert not is_us_wide("Senior Writer in Seattle, WA")
+    assert not is_us_wide("United States - Senior Writer")  # not at end
+    print("[PASS] is_us_wide() works correctly")
+
+    # ── is_truly_remote: positive description patterns ────────────
+    remote_descriptions = [
+        "This is a fully remote position.",
+        "Location: Remote",
+        "Role type: remote",
+        "This is a remote position open to candidates in the USA.",
+        "100% remote work environment.",
+        "This role is completely remote.",
+        "This role is entirely remote.",
+        "This is listed as remote on our job board.",
+        "Remote if located in the US.",
+        "remote work opportunity for qualified candidates.",
+    ]
+    for desc in remote_descriptions:
+        assert is_truly_remote(desc), f"Should be remote: '{desc}'"
+    print(f"[PASS] is_truly_remote() matches {len(remote_descriptions)} positive description patterns")
+
+    # ── is_truly_remote: positive title patterns ─────────────────
+    remote_titles = [
+        ("Technical Writer (Remote - US) in Denver, CO", "Some description."),
+        ("Technical Writer (Remote)", "Some description."),
+        ("Sr. Manager, Technical Writer - Remote", "Some description."),
+        ("Content Writer | Remote", "Some description."),
+        ("Remote Technical Writer", "Some description."),
+    ]
+    for title, desc in remote_titles:
+        assert is_truly_remote(desc, title), f"Should be remote via title: '{title}'"
+    print(f"[PASS] is_truly_remote() matches {len(remote_titles)} positive title patterns")
+
+    # ── is_truly_remote: negative / non-matching ─────────────────
+    not_remote = [
+        "This is not a remote position.",
+        "We do not offer remote work.",
+        "Remote operations manager needed on-site.",
+        "Remote sensing specialist required.",
+        "Not a remote role.",
+        "Great office in downtown Seattle.",
+        "",
+    ]
+    for desc in not_remote:
+        assert not is_truly_remote(desc), f"Should NOT be remote: '{desc}'"
+    print(f"[PASS] is_truly_remote() rejects {len(not_remote)} negative/non-remote descriptions")
+
+    # ── is_truly_remote: negative title patterns ─────────────────
+    assert not is_truly_remote("Some description.", "Remote Operations Manager in NYC, NY")
+    assert not is_truly_remote("Some description.", "Remote Sensing Analyst")
+    assert not is_truly_remote("Some description.", "Remote Control Engineer")
+    print("[PASS] is_truly_remote() rejects negative title patterns")
+
+    # ── is_truly_remote: empty/None ──────────────────────────────
+    assert not is_truly_remote("")
+    assert not is_truly_remote(None)
+    print("[PASS] is_truly_remote() handles empty/None")
+
+    return True
+
+
+def test_seattle_metro_consistency():
+    """Test that SEATTLE_METRO lists match between filter and analyzer."""
+    from filter_jobs_by_location import SEATTLE_METRO
+    from job_analyzer import SEATTLE_METRO_CITIES
+
+    assert set(SEATTLE_METRO) == set(SEATTLE_METRO_CITIES), (
+        f"City lists out of sync!\n"
+        f"  Only in filter: {set(SEATTLE_METRO) - set(SEATTLE_METRO_CITIES)}\n"
+        f"  Only in analyzer: {set(SEATTLE_METRO_CITIES) - set(SEATTLE_METRO)}"
+    )
+    print("[PASS] SEATTLE_METRO and SEATTLE_METRO_CITIES are in sync")
+    return True
+
+
 def main():
     """Run all project tests."""
     print("=" * 60)
     print("Project Integrity Tests")
     print("=" * 60)
-    
+
     tests = [
         test_critical_files_exist,
         test_app_imports,
         test_rss_since_filtering,
+        test_location_filtering,
+        test_seattle_metro_consistency,
     ]
     
     results = []

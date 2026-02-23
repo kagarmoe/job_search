@@ -1,250 +1,172 @@
-Plan: Set Up Database (kimberlygarmoe-1)               
+# Database Schema Reference
 
- Context
+SQLite database at `job_search.db` (project root, gitignored).
+Connection uses WAL mode, Row factory, and foreign_keys=ON.
+All DDL uses IF NOT EXISTS — `init_db()` is idempotent.
 
- The project stores job data in CSV files and profile data in a markdown file. We
-  need a SQLite database as the foundation for all downstream epics: data
- pipeline, profile backend, scoring, job tracking, resume/cover letter
- generation, and Flask web app.
+## Tables
 
- Database Schema
+### sources
 
- jobs table (serves Epics 2, 4, 5, 6)
+Normalized job sources (e.g., "LinkedIn", "builtin.com").
 
- Column: id
- Type: INTEGER PK
- Notes: autoincrement
- ────────────────────────────────────────
- Column: title
- Type: TEXT NOT NULL
- Notes:
- ────────────────────────────────────────
- Column: url
- Type: TEXT NOT NULL UNIQUE
- Notes: dedup key
- ────────────────────────────────────────
- Column: description
- Type: TEXT
- Notes: cleaned text, not HTML
- ────────────────────────────────────────
- Column: posted_date
- Type: TEXT
- Notes: ISO 8601
- ────────────────────────────────────────
- Column: source
- Type: TEXT
- Notes: "LinkedIn", "builtin.com", etc.
- ────────────────────────────────────────
- Column: feed
- Type: TEXT
- Notes: "Manual Addition", "Web Search", RSS feed title
- ────────────────────────────────────────
- Column: score
- Type: REAL
- Notes: 0-10, NULL until scored (Epic 4)
- ────────────────────────────────────────
- Column: score_rationale
- Type: TEXT
- Notes: LLM explanation (Epic 4)
- ────────────────────────────────────────
- Column: status
- Type: TEXT NOT NULL DEFAULT 'new'
- Notes: new|reviewed|applied|rejected|offer (Epic 5)
- ────────────────────────────────────────
- Column: resume_md
- Type: TEXT
- Notes: per-job tailored resume (Epic 6)
- ────────────────────────────────────────
- Column: resume_pdf_path
- Type: TEXT
- Notes: filesystem path (Epic 6)
- ────────────────────────────────────────
- Column: cover_letter_md
- Type: TEXT
- Notes: per-job cover letter (Epic 6)
- ────────────────────────────────────────
- Column: cover_letter_pdf_path
- Type: TEXT
- Notes: filesystem path (Epic 6)
- ────────────────────────────────────────
- Column: created_at
- Type: TEXT
- Notes: auto-set on insert
- ────────────────────────────────────────
- Column: updated_at
- Type: TEXT
- Notes: auto-set on insert/update
+| Column | Type              | Notes |
+|--------|-------------------|-------|
+| id     | INTEGER PK        | autoincrement |
+| name   | TEXT NOT NULL UNIQUE | source name |
 
- CHECK constraints: status IN allowed values, score 0-10 range.
+### feeds
 
- profile_meta table (Epic 3) — key-value for singleton fields
+Normalized feed info. Absorbs the former `feed_fetch_log` table.
 
- Column: key
- Type: TEXT PK
- Notes: name, title, location, email, linkedin_url, github_url, summary
- ────────────────────────────────────────
- Column: value
- Type: TEXT NOT NULL
- Notes:
+| Column     | Type              | Notes |
+|------------|-------------------|-------|
+| id         | INTEGER PK        | autoincrement |
+| name       | TEXT NOT NULL UNIQUE | feed title |
+| url        | TEXT UNIQUE       | RSS feed URL; NULL for non-RSS feeds |
+| source_id  | INTEGER FK        | REFERENCES sources(id) |
+| last_fetch | TEXT              | ISO-8601 datetime of newest entry seen |
 
- job_history table (Epic 3)
+### jobs
 
- ┌─────────────┬───────────────┬────────────────────────────────────────┐
- │   Column    │     Type      │                 Notes                  │
- ├─────────────┼───────────────┼────────────────────────────────────────┤
- │ id          │ INTEGER PK    │                                        │
- ├─────────────┼───────────────┼────────────────────────────────────────┤
- │ company     │ TEXT NOT NULL │                                        │
- ├─────────────┼───────────────┼────────────────────────────────────────┤
- │ title       │ TEXT NOT NULL │                                        │
- ├─────────────┼───────────────┼────────────────────────────────────────┤
- │ start_date  │ TEXT          │ "YYYY-MM" or "YYYY" (profile has both) │
- ├─────────────┼───────────────┼────────────────────────────────────────┤
- │ end_date    │ TEXT          │ NULL = current                         │
- ├─────────────┼───────────────┼────────────────────────────────────────┤
- │ location    │ TEXT          │                                        │
- ├─────────────┼───────────────┼────────────────────────────────────────┤
- │ description │ TEXT          │                                        │
- ├─────────────┼───────────────┼────────────────────────────────────────┤
- │ sort_order  │ INTEGER       │ controls resume display order          │
- └─────────────┴───────────────┴────────────────────────────────────────┘
+Core entity for all job listings.
 
- education table (Epic 3)
+| Column                | Type              | Notes |
+|-----------------------|-------------------|-------|
+| id                    | INTEGER PK        | autoincrement |
+| title                 | TEXT NOT NULL      | |
+| url                   | TEXT NOT NULL UNIQUE | dedup key |
+| description           | TEXT              | |
+| posted_date           | TEXT              | ISO 8601 |
+| source_id             | INTEGER FK        | REFERENCES sources(id) |
+| feed_id               | INTEGER FK        | REFERENCES feeds(id) |
+| score                 | REAL              | 0-10; NULL until scored |
+| score_rationale       | TEXT              | LLM explanation |
+| status                | TEXT NOT NULL DEFAULT 'new' | CHECK: new\|reviewed\|applied\|rejected\|offer |
+| location_label        | TEXT              | CHECK: Seattle\|Remote\|Review for location |
+| job_type              | TEXT              | |
+| pay_range             | TEXT              | |
+| contract_duration     | TEXT              | |
+| resume_md             | TEXT              | per-job tailored resume markdown |
+| resume_pdf_path       | TEXT              | filesystem path to generated PDF |
+| cover_letter_md       | TEXT              | per-job cover letter markdown |
+| cover_letter_pdf_path | TEXT              | filesystem path to generated PDF |
+| created_at            | TEXT NOT NULL      | auto-set on insert |
+| updated_at            | TEXT NOT NULL      | auto-set on insert and update (via trigger) |
 
- ┌─────────────┬───────────────┬───────┐
- │   Column    │     Type      │ Notes │
- ├─────────────┼───────────────┼───────┤
- │ id          │ INTEGER PK    │       │
- ├─────────────┼───────────────┼───────┤
- │ institution │ TEXT NOT NULL │       │
- ├─────────────┼───────────────┼───────┤
- │ degree      │ TEXT          │       │
- ├─────────────┼───────────────┼───────┤
- │ field       │ TEXT          │       │
- ├─────────────┼───────────────┼───────┤
- │ start_date  │ TEXT          │       │
- ├─────────────┼───────────────┼───────┤
- │ end_date    │ TEXT          │       │
- ├─────────────┼───────────────┼───────┤
- │ description │ TEXT          │       │
- ├─────────────┼───────────────┼───────┤
- │ sort_order  │ INTEGER       │       │
- └─────────────┴───────────────┴───────┘
+### profile_meta
 
- certifications table (Epic 3)
+Key-value store for singleton profile fields.
 
- ┌─────────────┬───────────────┬───────┐
- │   Column    │     Type      │ Notes │
- ├─────────────┼───────────────┼───────┤
- │ id          │ INTEGER PK    │       │
- ├─────────────┼───────────────┼───────┤
- │ name        │ TEXT NOT NULL │       │
- ├─────────────┼───────────────┼───────┤
- │ issuer      │ TEXT          │       │
- ├─────────────┼───────────────┼───────┤
- │ date_earned │ TEXT          │       │
- ├─────────────┼───────────────┼───────┤
- │ sort_order  │ INTEGER       │       │
- └─────────────┴───────────────┴───────┘
+| Column | Type           | Notes |
+|--------|----------------|-------|
+| key    | TEXT PK        | name, title, location, email, linkedin_url, github_url, summary |
+| value  | TEXT NOT NULL   | |
 
- honors table (Epic 3)
+### job_history
 
- ┌─────────────┬───────────────┬───────┐
- │   Column    │     Type      │ Notes │
- ├─────────────┼───────────────┼───────┤
- │ id          │ INTEGER PK    │       │
- ├─────────────┼───────────────┼───────┤
- │ name        │ TEXT NOT NULL │       │
- ├─────────────┼───────────────┼───────┤
- │ issuer      │ TEXT          │       │
- ├─────────────┼───────────────┼───────┤
- │ description │ TEXT          │       │
- ├─────────────┼───────────────┼───────┤
- │ sort_order  │ INTEGER       │       │
- └─────────────┴───────────────┴───────┘
+Work experience entries.
 
- skills table (Epic 3)
+| Column      | Type           | Notes |
+|-------------|----------------|-------|
+| id          | INTEGER PK     | autoincrement |
+| company     | TEXT NOT NULL   | |
+| title       | TEXT NOT NULL   | |
+| start_date  | TEXT           | YYYY-MM or YYYY |
+| end_date    | TEXT           | NULL = current |
+| location    | TEXT           | |
+| description | TEXT           | |
+| sort_order  | INTEGER        | controls resume display order |
 
- Column: id
- Type: INTEGER PK
- Notes:
- ────────────────────────────────────────
- Column: name
- Type: TEXT NOT NULL UNIQUE
- Notes:
- ────────────────────────────────────────
- Column: category
- Type: TEXT NOT NULL
- Notes: writing|api_dev_tools|ai_ml|content_strategy|taxonomy_ia|tools|languages
- ────────────────────────────────────────
- Column: proficiency
- Type: TEXT
- Notes: expert|advanced|intermediate|familiar
- ────────────────────────────────────────
- Column: sort_order
- Type: INTEGER
- Notes:
+### education
 
- Indexes
+| Column      | Type           | Notes |
+|-------------|----------------|-------|
+| id          | INTEGER PK     | autoincrement |
+| institution | TEXT NOT NULL   | |
+| degree      | TEXT           | |
+| field       | TEXT           | |
+| start_date  | TEXT           | |
+| end_date    | TEXT           | |
+| description | TEXT           | |
+| sort_order  | INTEGER        | |
 
- - jobs(url) — UNIQUE (implicit from constraint)
- - jobs(status) — filter by status
- - jobs(score) — sort by relevance
- - jobs(posted_date) — sort by recency
- - jobs(status, score DESC) — composite for "new jobs by best score"
- - skills(category) — filter skills by taxonomy category
+### certifications
 
- Module Structure
+| Column      | Type           | Notes |
+|-------------|----------------|-------|
+| id          | INTEGER PK     | autoincrement |
+| name        | TEXT NOT NULL   | |
+| issuer      | TEXT           | |
+| date_earned | TEXT           | |
+| sort_order  | INTEGER        | |
 
- db/
-   __init__.py       # exports get_db(), init_db()
-   connection.py     # get_db() with WAL mode, Row factory
-   schema.py         # all DDL as string constants
-   models.py         # dataclasses: Job, Skill, JobHistory, Education, etc.
-   jobs.py           # full CRUD for jobs (upsert, get, list, update
- status/score, delete)
-   profile.py        # stub CRUD for profile tables
+### honors
 
+| Column      | Type           | Notes |
+|-------------|----------------|-------|
+| id          | INTEGER PK     | autoincrement |
+| name        | TEXT NOT NULL   | |
+| issuer      | TEXT           | |
+| description | TEXT           | |
+| sort_order  | INTEGER        | |
 
- - DB file: job_search.db at project root (added to .gitignore)
- - get_db() sets row_factory=sqlite3.Row, journal_mode=WAL, foreign_keys=ON
- - init_db() runs executescript() with all DDL — idempotent via IF NOT EXISTS
+### skills
 
- Key design: upsert_job()
+| Column      | Type              | Notes |
+|-------------|-------------------|-------|
+| id          | INTEGER PK        | autoincrement |
+| name        | TEXT NOT NULL UNIQUE | |
+| category    | TEXT NOT NULL      | CHECK: writing\|api_dev_tools\|ai_ml\|content_strategy\|taxonomy_ia\|tools\|languages |
+| proficiency | TEXT              | CHECK: expert\|advanced\|intermediate\|familiar |
+| sort_order  | INTEGER           | |
 
- Uses INSERT ... ON CONFLICT(url) DO UPDATE to handle dedup. Updates
- title/description/date/source/feed but preserves user-set fields (score, status,
-  resume, cover letter).
+## Indexes
 
- Implementation Steps
+| Index                    | Column(s)          | Notes |
+|--------------------------|--------------------|-------|
+| jobs(url)                | url                | implicit UNIQUE constraint |
+| idx_jobs_status          | status             | filter by status |
+| idx_jobs_score           | score              | sort by relevance |
+| idx_jobs_posted_date     | posted_date        | sort by recency |
+| idx_jobs_status_score    | status, score DESC | composite for "new jobs by best score" |
+| idx_jobs_location_label  | location_label     | filter by location |
+| idx_jobs_source_id       | source_id          | FK join optimization |
+| idx_jobs_feed_id         | feed_id            | FK join optimization |
+| idx_feeds_source_id      | source_id          | FK join optimization |
+| idx_skills_category      | category           | filter skills by taxonomy category |
 
- 1. Create db/ directory
- 2. Write db/schema.py — all CREATE TABLE + CREATE INDEX statements
- 3. Write db/connection.py — get_db(), close_db()
- 4. Write db/models.py — dataclasses for all tables
- 5. Write db/jobs.py — full CRUD for jobs table
- 6. Write db/profile.py — stub CRUD for profile tables
- 7. Write db/__init__.py — package exports
- 8. Add job_search.db to .gitignore
- 9. Write + run a smoke test to verify schema creation, insert, dedup, and
- queries
+## Triggers
 
- Scope Boundary
+- **jobs_updated_at** — AFTER UPDATE on jobs, auto-sets `updated_at` to current timestamp.
 
- This issue (kimberlygarmoe-1): schema, db module, CRUD helpers, .gitignore,
- smoke test
+## Module Structure
 
- Downstream issues (not touched):
- - CSV migration → kimberlygarmoe-2.4
- - Profile data population → kimberlygarmoe-3.3
- - Scoring logic → Epic 4
- - Resume/cover letter generation → Epic 6
- - Flask integration → Epic 8
+```
+db/
+  __init__.py                # exports get_db(), init_db(), close_db()
+  connection.py              # get_db() with WAL mode, Row factory, foreign_keys
+  schema.py                  # all DDL as string constants
+  models.py                  # dataclasses: Source, Feed, Job, Skill, etc.
+  feeds.py                   # sources/feeds CRUD + fetch timestamp helpers
+  jobs.py                    # full CRUD for jobs (upsert resolves names to IDs)
+  profile.py                 # CRUD for profile tables
+  smoke_test.py              # comprehensive smoke test suite
+  migrate_001_normalize.py   # migration: denormalized → normalized schema
+```
 
- Verification
+## Key Design: upsert_job()
 
- 1. Run python -m db.setup (or equivalent) — creates job_search.db with all
- tables
- 2. Run smoke test: insert a job, retrieve it, insert same URL again (verify
- upsert), list with filters, update status
- 3. Verify .gitignore excludes job_search.db
+Uses `INSERT ... ON CONFLICT(url) DO UPDATE` for dedup. Updates title, description,
+posted_date, source_id, and feed_id but preserves user-set fields (score, status,
+location_label, resume, cover letter).
+
+Callers pass human-readable source/feed names as strings. The function resolves
+them to FK IDs internally via `get_or_create_source()` / `get_or_create_feed()`.
+An optional `feed_url` parameter populates `feeds.url` for RSS feeds.
+
+## Key Design: list_jobs()
+
+JOINs sources and feeds tables to return `Job` objects with human-readable
+`source` and `feed` name strings for display. Supports filtering by status,
+source name, min_score, and configurable ordering.

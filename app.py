@@ -107,7 +107,7 @@ def index():
     # Get unique sources for filter dropdown
     conn = get_db()
     sources = [row[0] for row in conn.execute(
-        "SELECT DISTINCT source FROM jobs WHERE source IS NOT NULL ORDER BY source"
+        "SELECT name FROM sources ORDER BY name"
     ).fetchall()]
     
     # Get job counts by status

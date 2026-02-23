@@ -10,7 +10,13 @@ from pathlib import Path
 from datetime import datetime
 
 from db.connection import init_db, close_db
-from db.feeds import get_last_fetch, get_all_last_fetches, set_last_fetch
+from db.feeds import (
+    get_or_create_source,
+    get_or_create_feed,
+    get_last_fetch,
+    get_all_last_fetches,
+    set_last_fetch,
+)
 from db.jobs import (
     upsert_job,
     get_job,
@@ -41,13 +47,39 @@ def main() -> None:
             ).fetchall()
         ]
         expected = {
-            "certifications", "education", "feed_fetch_log", "honors",
-            "job_history", "jobs", "profile_meta", "skills",
+            "certifications", "education", "feeds", "honors",
+            "job_history", "jobs", "profile_meta", "skills", "sources",
         }
         assert expected.issubset(set(tables)), f"Missing tables: {expected - set(tables)}"
         print(f"[PASS] All {len(expected)} tables created: {sorted(expected)}")
 
-        # Insert a job
+        # ----------------------------------------------------------
+        # Sources and Feeds
+        # ----------------------------------------------------------
+        src_id = get_or_create_source("LinkedIn", db=conn)
+        assert src_id is not None
+        src_id2 = get_or_create_source("LinkedIn", db=conn)
+        assert src_id == src_id2, "get_or_create_source should return same id"
+        print(f"[PASS] get_or_create_source() works (id={src_id})")
+
+        feed_id = get_or_create_feed(
+            "LinkedIn Jobs - Tech Writer",
+            url="https://example.com/feed.xml",
+            source_id=src_id,
+            db=conn,
+        )
+        assert feed_id is not None
+        feed_id2 = get_or_create_feed("LinkedIn Jobs - Tech Writer", db=conn)
+        assert feed_id == feed_id2, "get_or_create_feed should return same id by name"
+        feed_id3 = get_or_create_feed(
+            "Other Name", url="https://example.com/feed.xml", db=conn
+        )
+        assert feed_id == feed_id3, "get_or_create_feed should return same id by url"
+        print(f"[PASS] get_or_create_feed() works (id={feed_id})")
+
+        # ----------------------------------------------------------
+        # Insert a job (using string API)
+        # ----------------------------------------------------------
         job = upsert_job(
             "Senior Technical Writer",
             "https://example.com/jobs/123",
@@ -60,18 +92,25 @@ def main() -> None:
         assert job.id is not None
         assert job.title == "Senior Technical Writer"
         assert job.status == "new"
-        print(f"[PASS] Inserted job id={job.id}")
+        assert job.source == "LinkedIn"
+        assert job.feed == "Manual Addition"
+        assert job.source_id is not None
+        assert job.feed_id is not None
+        print(f"[PASS] Inserted job id={job.id} (source_id={job.source_id}, feed_id={job.feed_id})")
 
-        # Fetch by ID
+        # Fetch by ID — should have JOINed names
         fetched = get_job(job.id, db=conn)
         assert fetched is not None
         assert fetched.url == "https://example.com/jobs/123"
-        print(f"[PASS] get_job({job.id}) returned correct job")
+        assert fetched.source == "LinkedIn"
+        assert fetched.feed == "Manual Addition"
+        print(f"[PASS] get_job({job.id}) returned correct job with source/feed names")
 
         # Fetch by URL
         fetched_url = get_job_by_url("https://example.com/jobs/123", db=conn)
         assert fetched_url is not None
         assert fetched_url.id == job.id
+        assert fetched_url.source == "LinkedIn"
         print(f"[PASS] get_job_by_url() returned correct job")
 
         # Upsert same URL — should update, not duplicate
@@ -92,12 +131,14 @@ def main() -> None:
         # List jobs
         jobs = list_jobs(db=conn)
         assert len(jobs) == 1
-        print(f"[PASS] list_jobs() returned {len(jobs)} job(s)")
+        assert jobs[0].source == "LinkedIn"
+        print(f"[PASS] list_jobs() returned {len(jobs)} job(s) with source names")
 
         # Update status
         updated = update_status(job.id, "reviewed", db=conn)
         assert updated is not None
         assert updated.status == "reviewed"
+        assert updated.source == "LinkedIn"  # JOINed name preserved
         print(f"[PASS] update_status() -> reviewed")
 
         # Update score
@@ -114,7 +155,12 @@ def main() -> None:
         assert len(jobs_reviewed) == 1
         jobs_scored = list_jobs(min_score=5.0, db=conn)
         assert len(jobs_scored) == 1
-        print(f"[PASS] list_jobs() filters work correctly")
+        # Filter by source name
+        jobs_linkedin = list_jobs(source="LinkedIn", db=conn)
+        assert len(jobs_linkedin) == 1
+        jobs_other = list_jobs(source="Nonexistent", db=conn)
+        assert len(jobs_other) == 0
+        print(f"[PASS] list_jobs() filters work correctly (including source filter)")
 
         # Insert a second job and test ordering
         upsert_job("Content Strategist", "https://example.com/jobs/456", db=conn)
@@ -164,12 +210,15 @@ def main() -> None:
             conn.execute("ROLLBACK")
             print(f"[PASS] CHECK constraint rejects score > 10")
 
-        # Feed fetch log: no record yet
-        assert get_last_fetch("https://example.com/feed.xml", db=conn) is None
-        assert get_all_last_fetches(db=conn) == {}
+        # ----------------------------------------------------------
+        # Feed fetch timestamps (operating on feeds table)
+        # ----------------------------------------------------------
+
+        # No last_fetch recorded yet for an unknown url
+        assert get_last_fetch("https://example.com/unknown-feed.xml", db=conn) is None
         print("[PASS] get_last_fetch() returns None for unknown feed")
 
-        # Set and retrieve a timestamp
+        # set_last_fetch on a feed that already has a url (created above)
         ts1 = datetime(2026, 2, 20, 12, 0, 0)
         set_last_fetch("https://example.com/feed.xml", ts1, db=conn)
         assert get_last_fetch("https://example.com/feed.xml", db=conn) == ts1
@@ -181,13 +230,33 @@ def main() -> None:
         assert get_last_fetch("https://example.com/feed.xml", db=conn) == ts2
         print("[PASS] set_last_fetch() upsert updates timestamp")
 
-        # Multiple feeds tracked independently
+        # set_last_fetch for a brand-new url (creates row)
         set_last_fetch("https://example.com/feed2.xml", ts1, db=conn)
         all_fetches = get_all_last_fetches(db=conn)
-        assert len(all_fetches) == 2
+        assert "https://example.com/feed.xml" in all_fetches
+        assert "https://example.com/feed2.xml" in all_fetches
         assert all_fetches["https://example.com/feed.xml"] == ts2
         assert all_fetches["https://example.com/feed2.xml"] == ts1
-        print("[PASS] get_all_last_fetches() returns all feeds")
+        print("[PASS] get_all_last_fetches() returns all feeds with timestamps")
+
+        # ----------------------------------------------------------
+        # Job with feed_url — ensures feed row gets url populated
+        # ----------------------------------------------------------
+        job_rss = upsert_job(
+            "RSS Job",
+            "https://example.com/jobs/rss-1",
+            source="builtin.com",
+            feed="Builtin Jobs Feed",
+            feed_url="https://rss.example.com/builtin.xml",
+            db=conn,
+        )
+        assert job_rss.feed_id is not None
+        # The feed row should have the url set
+        feed_row = conn.execute(
+            "SELECT url FROM feeds WHERE id = ?", (job_rss.feed_id,)
+        ).fetchone()
+        assert feed_row["url"] == "https://rss.example.com/builtin.xml"
+        print("[PASS] upsert_job with feed_url populates feeds.url")
 
         print("\n=== All smoke tests passed! ===")
 

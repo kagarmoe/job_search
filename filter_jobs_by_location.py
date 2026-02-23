@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """Filter the jobs database to only keep Seattle metro and truly remote jobs.
 
-Removes jobs that are not in the greater Seattle area
-(Seattle, Bellevue, Redmond, Kirkland, Bothell) and not truly remote.
+Removes jobs that are not in the greater Seattle area and not truly remote.
 """
 
 import re
 import sqlite3
 
-SEATTLE_METRO = ["Seattle", "Bellevue", "Redmond", "Kirkland", "Bothell"]
+SEATTLE_METRO = ["Seattle", "Bellevue", "Redmond", "Kirkland", "Bothell", "Renton", "Kent", "Federal Way", "Sammamish", "Issaquah", "Tacoma", "Olympia"]
 
-# Patterns that indicate truly remote
+# Single regex matching any metro city followed by ", WA" anywhere in a title
+_SEATTLE_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(c) for c in SEATTLE_METRO) + r"),\s*WA\b",
+    re.IGNORECASE,
+)
+
+# Patterns that indicate truly remote (checked against description)
 REMOTE_POSITIVE = re.compile(
     r"(?:fully\s+remote|location\s*:\s*remote|role\s+(?:type|is)\s*:\s*remote|"
     r"remote\s+(?:position|role|work|opportunity|\()|"
@@ -21,18 +26,19 @@ REMOTE_POSITIVE = re.compile(
     re.IGNORECASE,
 )
 
-# Patterns that negate remote
+# Patterns that negate remote (checked against description and title)
 REMOTE_NEGATIVE = re.compile(
-    r"not\s+(?:a\s+)?remote|not\s+offer\s+remote|remote\s+(?:operations?|assistance|sensing)",
+    r"not\s+(?:a\s+)?remote|not\s+offer\s+remote|remote\s+(?:operations?|assistance|sensing|control)",
     re.IGNORECASE,
 )
 
+# "Remote" in a title used as a location indicator (not part of a compound term)
+_REMOTE_TITLE_RE = re.compile(r"\bremote\b", re.IGNORECASE)
+
 
 def is_seattle(title: str) -> bool:
-    return any(
-        f"in {city}," in title or title.endswith(f"in {city}, WA")
-        for city in SEATTLE_METRO
-    )
+    """Match any SEATTLE_METRO city followed by ', WA' anywhere in the title."""
+    return bool(_SEATTLE_RE.search(title))
 
 
 def is_us_wide(title: str) -> bool:
@@ -40,7 +46,17 @@ def is_us_wide(title: str) -> bool:
     return title.endswith("in United States")
 
 
-def is_truly_remote(description: str) -> bool:
+def is_truly_remote(description: str, title: str = "") -> bool:
+    """Check if a job is truly remote based on description and/or title.
+
+    Checks the title for 'Remote' as a location indicator (e.g. '(Remote - US)'),
+    then falls back to description-based pattern matching.
+    """
+    # Title check: "Remote" in title, unless it's "Remote Operations" etc.
+    if title and _REMOTE_TITLE_RE.search(title) and not REMOTE_NEGATIVE.search(title):
+        return True
+
+    # Description check
     if not description:
         return False
     return bool(REMOTE_POSITIVE.search(description)) and not bool(
@@ -65,7 +81,7 @@ def main():
             keep.append((row["id"], title, "seattle"))
         elif is_us_wide(title):
             keep.append((row["id"], title, "us-wide"))
-        elif is_truly_remote(desc):
+        elif is_truly_remote(desc, title):
             keep.append((row["id"], title, "remote"))
         else:
             remove.append((row["id"], title))

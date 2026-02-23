@@ -2,7 +2,37 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
+
+
+def _from_row(cls, row):
+    """Create a dataclass instance from a sqlite3.Row, ignoring extra columns."""
+    known = {f.name for f in dataclasses.fields(cls)}
+    return cls(**{k: row[k] for k in row.keys() if k in known})
+
+
+@dataclass
+class Source:
+    id: int | None = None
+    name: str = ""
+
+    @classmethod
+    def from_row(cls, row) -> Source:
+        return _from_row(cls, row)
+
+
+@dataclass
+class Feed:
+    id: int | None = None
+    name: str = ""
+    url: str | None = None
+    source_id: int | None = None
+    last_fetch: str | None = None
+
+    @classmethod
+    def from_row(cls, row) -> Feed:
+        return _from_row(cls, row)
 
 
 @dataclass
@@ -12,8 +42,10 @@ class Job:
     url: str = ""
     description: str | None = None
     posted_date: str | None = None
-    source: str | None = None
-    feed: str | None = None
+    source_id: int | None = None
+    feed_id: int | None = None
+    source: str | None = None  # populated from JOIN with sources table
+    feed: str | None = None    # populated from JOIN with feeds table
     score: float | None = None
     score_rationale: str | None = None
     status: str = "new"
@@ -30,8 +62,7 @@ class Job:
 
     @classmethod
     def from_row(cls, row) -> Job:
-        """Create a Job from a sqlite3.Row."""
-        return cls(**{k: row[k] for k in row.keys()})
+        return _from_row(cls, row)
 
 
 @dataclass
@@ -41,7 +72,7 @@ class ProfileMeta:
 
     @classmethod
     def from_row(cls, row) -> ProfileMeta:
-        return cls(**{k: row[k] for k in row.keys()})
+        return _from_row(cls, row)
 
 
 @dataclass
@@ -57,7 +88,7 @@ class JobHistory:
 
     @classmethod
     def from_row(cls, row) -> JobHistory:
-        return cls(**{k: row[k] for k in row.keys()})
+        return _from_row(cls, row)
 
 
 @dataclass
@@ -73,7 +104,7 @@ class Education:
 
     @classmethod
     def from_row(cls, row) -> Education:
-        return cls(**{k: row[k] for k in row.keys()})
+        return _from_row(cls, row)
 
 
 @dataclass
@@ -86,7 +117,7 @@ class Certification:
 
     @classmethod
     def from_row(cls, row) -> Certification:
-        return cls(**{k: row[k] for k in row.keys()})
+        return _from_row(cls, row)
 
 
 @dataclass
@@ -99,7 +130,7 @@ class Honor:
 
     @classmethod
     def from_row(cls, row) -> Honor:
-        return cls(**{k: row[k] for k in row.keys()})
+        return _from_row(cls, row)
 
 
 @dataclass
@@ -112,4 +143,4 @@ class Skill:
 
     @classmethod
     def from_row(cls, row) -> Skill:
-        return cls(**{k: row[k] for k in row.keys()})
+        return _from_row(cls, row)
