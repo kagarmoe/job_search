@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Review Complete - Job Search{% endblock %}
+
+{% block content %}
+<div class="review-done">
+    <h1>All caught up!</h1>
+    <p>No new jobs to review right now.</p>
+    <div class="review-done-actions">
+        <a href="{{ url_for('index') }}" class="btn-primary">View All Jobs</a>
+        <a href="{{ url_for('index', status='reviewed') }}" class="btn-secondary">See Interested Jobs</a>
+    </div>
+</div>
+{% endblock %}

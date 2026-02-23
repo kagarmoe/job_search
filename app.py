@@ -14,12 +14,14 @@ Usage:
 
 import re
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+import os
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 from db.connection import get_db, init_db
-from db.jobs import list_jobs, get_job, update_status, update_score
+from db.jobs import list_jobs, get_job, update_status, update_score, update_notes, get_next_review_job, count_review_jobs
 from db.profile import get_all_meta, list_job_history, list_skills
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
 init_db()
 
 
@@ -96,6 +98,8 @@ def index():
     kwargs = {}
     if status_filter:
         kwargs['status'] = status_filter
+    else:
+        kwargs['exclude_status'] = 'passed'
     if source_filter:
         kwargs['source'] = source_filter
     if min_score is not None:
@@ -167,6 +171,51 @@ def update_job_score(job_id):
         return jsonify({'error': 'Job not found'}), 404
     
     return jsonify({'score': job.score, 'rationale': job.score_rationale})
+
+
+@app.route('/review')
+def review():
+    """Start the review queue — clear session skips and show first unreviewed job."""
+    session.pop('review_skipped', None)
+    job = get_next_review_job()
+    if not job:
+        return render_template('review_done.html')
+    return redirect(url_for('job_detail', job_id=job.id, **{'from': 'review'}))
+
+
+@app.route('/review/next')
+def review_next():
+    """Redirect to the next unreviewed job, excluding session-skipped IDs."""
+    skipped = session.get('review_skipped', [])
+    job = get_next_review_job(exclude_ids=skipped)
+    if not job:
+        return render_template('review_done.html')
+    return redirect(url_for('job_detail', job_id=job.id, **{'from': 'review'}))
+
+
+@app.route('/job/<int:job_id>/review', methods=['POST'])
+def review_job(job_id):
+    """Handle a review action (interested/skip/pass) and advance to next job."""
+    action = request.form.get('action')
+    if action == 'interested':
+        update_status(job_id, 'reviewed')
+    elif action == 'pass':
+        update_status(job_id, 'passed')
+        reason = request.form.get('reason', '').strip()
+        if reason:
+            update_notes(job_id, reason)
+    elif action == 'skip':
+        skipped = session.get('review_skipped', [])
+        skipped.append(job_id)
+        session['review_skipped'] = skipped
+
+    return redirect(url_for('review_next'))
+
+
+@app.context_processor
+def inject_review_count():
+    """Make review job count available in all templates."""
+    return {'review_count': count_review_jobs()}
 
 
 @app.route('/profile')

@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     score           REAL CHECK (score IS NULL OR (score >= 0 AND score <= 10)),
     score_rationale TEXT,
     status          TEXT NOT NULL DEFAULT 'new'
-                        CHECK (status IN ('new', 'reviewed', 'applied', 'rejected', 'offer')),
+                        CHECK (status IN ('new', 'passed', 'reviewed', 'applied', 'rejected', 'offer')),
     location_label  TEXT CHECK (location_label IS NULL OR location_label IN ('Seattle', 'Remote', 'Review for location')),
     job_type        TEXT,
     pay_range       TEXT,
@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     resume_pdf_path     TEXT,
     cover_letter_md     TEXT,
     cover_letter_pdf_path TEXT,
+    notes               TEXT,
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now')),
     updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))
 );

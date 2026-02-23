@@ -107,6 +107,7 @@ h2 {
 .status-new { background-color: #3498db; color: white; }
 .status-reviewed { background-color: #9b59b6; color: white; }
 .status-applied { background-color: #f39c12; color: white; }
+.status-passed { background-color: #bdc3c7; color: #555; }
 .status-rejected { background-color: #95a5a6; color: white; }
 .status-offer { background-color: #27ae60; color: white; }
 
@@ -479,6 +480,148 @@ h2 {
     margin-bottom: 0.8rem;
 }
 
+/* Nav badge */
+.nav-badge {
+    display: inline-block;
+    background-color: #e74c3c;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 10px;
+    margin-left: 0.2rem;
+    vertical-align: middle;
+}
+
+/* Review workflow */
+.review-actions-section {
+    border: 2px solid #3498db;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    background: #f0f7ff;
+}
+
+.review-progress {
+    text-align: center;
+    color: #555;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.review-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.review-actions form {
+    display: inline;
+}
+
+.btn-interested,
+.btn-skip,
+.btn-pass {
+    padding: 0.8rem 2rem;
+    border-radius: 6px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-interested {
+    background-color: #27ae60;
+    color: white;
+    border: 2px solid #27ae60;
+}
+
+.btn-interested:hover {
+    background-color: #219a52;
+    border-color: #219a52;
+}
+
+.btn-skip {
+    background-color: white;
+    color: #666;
+    border: 2px solid #bdc3c7;
+}
+
+.btn-skip:hover {
+    background-color: #ecf0f1;
+    border-color: #95a5a6;
+}
+
+.btn-pass {
+    background-color: white;
+    color: #e74c3c;
+    border: 2px solid #e74c3c;
+}
+
+.btn-pass:hover {
+    background-color: #fdf0ef;
+    border-color: #c0392b;
+}
+
+.pass-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.reason-input {
+    padding: 0.6rem 0.8rem;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    width: 200px;
+    transition: border-color 0.2s;
+}
+
+.reason-input:focus {
+    border-color: #e74c3c;
+    outline: none;
+}
+
+.job-notes {
+    background: #fff8e1;
+    padding: 1rem;
+    border-radius: 4px;
+    border-left: 4px solid #f39c12;
+    margin-top: 1rem;
+}
+
+.job-notes h2 {
+    margin-top: 0;
+    font-size: 1.1rem;
+}
+
+/* Review done page */
+.review-done {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.review-done h1 {
+    color: #27ae60;
+    margin-bottom: 0.5rem;
+}
+
+.review-done p {
+    color: #666;
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+}
+
+.review-done-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .filters {
@@ -505,5 +648,22 @@ h2 {
     
     .skills-grid {
         grid-template-columns: 1fr;
+    }
+
+    .review-actions {
+        flex-direction: column;
+    }
+
+    .pass-form {
+        flex-direction: column;
+    }
+
+    .reason-input {
+        width: 100%;
+    }
+
+    .review-done-actions {
+        flex-direction: column;
+        align-items: center;
     }
 }
