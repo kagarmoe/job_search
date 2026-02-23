@@ -92,6 +92,7 @@ def get_job_by_url(url: str, *, db: sqlite3.Connection | None = None) -> Job | N
 def list_jobs(
     *,
     status: str | None = None,
+    statuses: list[str] | None = None,
     source: str | None = None,
     min_score: float | None = None,
     order_by: str = "created_at DESC",
@@ -101,7 +102,8 @@ def list_jobs(
     """List jobs with optional filters.
 
     Args:
-        status: Filter by status (new, reviewed, applied, rejected, offer).
+        status: Filter by single status.
+        statuses: Filter by multiple statuses (OR).
         source: Filter by source name.
         min_score: Only return jobs scored at or above this value.
         order_by: SQL ORDER BY clause. Default: created_at DESC.
@@ -114,6 +116,10 @@ def list_jobs(
     if status is not None:
         clauses.append("j.status = ?")
         params.append(status)
+    elif statuses is not None:
+        placeholders = ",".join("?" for _ in statuses)
+        clauses.append(f"j.status IN ({placeholders})")
+        params.extend(statuses)
     if source is not None:
         clauses.append("s.name = ?")
         params.append(source)
@@ -174,6 +180,54 @@ def update_score(
     cursor = conn.execute(
         "UPDATE jobs SET score = ?, score_rationale = ? WHERE id = ? RETURNING *",
         (score, rationale, job_id),
+    )
+    row = cursor.fetchone()
+    conn.commit()
+    if row is None:
+        return None
+    return get_job(job_id, db=conn)
+
+
+def get_next_review_job(
+    *,
+    exclude_ids: list[int] | None = None,
+    db: sqlite3.Connection | None = None,
+) -> Job | None:
+    """Return the next job with status 'new' for review.
+
+    Orders by score DESC (NULLs last), then posted_date DESC.
+    Optionally excludes a list of job IDs (e.g. session-skipped jobs).
+    """
+    conn = db or get_db()
+    clauses = ["j.status = 'new'"]
+    params: list = []
+    if exclude_ids:
+        placeholders = ",".join("?" for _ in exclude_ids)
+        clauses.append(f"j.id NOT IN ({placeholders})")
+        params.extend(exclude_ids)
+    where = " WHERE " + " AND ".join(clauses)
+    row = conn.execute(
+        _SELECT_JOBS + where + " ORDER BY j.score IS NULL, j.score DESC, j.posted_date DESC LIMIT 1",
+        params,
+    ).fetchone()
+    return Job.from_row(row) if row else None
+
+
+def count_review_jobs(*, db: sqlite3.Connection | None = None) -> int:
+    """Return the number of jobs with status 'new'."""
+    conn = db or get_db()
+    row = conn.execute("SELECT COUNT(*) FROM jobs WHERE status = 'new'").fetchone()
+    return row[0]
+
+
+def update_notes(
+    job_id: int, notes: str, *, db: sqlite3.Connection | None = None
+) -> Job | None:
+    """Update a job's notes. Returns the updated job or None if not found."""
+    conn = db or get_db()
+    cursor = conn.execute(
+        "UPDATE jobs SET notes = ? WHERE id = ? RETURNING *",
+        (notes, job_id),
     )
     row = cursor.fetchone()
     conn.commit()

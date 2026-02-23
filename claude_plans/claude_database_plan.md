@@ -42,7 +42,7 @@ Core entity for all job listings.
 | feed_id               | INTEGER FK        | REFERENCES feeds(id) |
 | score                 | REAL              | 0-10; NULL until scored |
 | score_rationale       | TEXT              | LLM explanation |
-| status                | TEXT NOT NULL DEFAULT 'new' | CHECK: new\|reviewed\|applied\|rejected\|offer |
+| status                | TEXT NOT NULL DEFAULT 'new' | CHECK: new\|interested\|passed\|applied\|rejected\|offer |
 | location_label        | TEXT              | CHECK: Seattle\|Remote\|Review for location |
 | job_type              | TEXT              | |
 | pay_range             | TEXT              | |
@@ -51,6 +51,7 @@ Core entity for all job listings.
 | resume_pdf_path       | TEXT              | filesystem path to generated PDF |
 | cover_letter_md       | TEXT              | per-job cover letter markdown |
 | cover_letter_pdf_path | TEXT              | filesystem path to generated PDF |
+| notes                 | TEXT              | freeform notes (e.g., reason for passing) |
 | created_at            | TEXT NOT NULL      | auto-set on insert |
 | updated_at            | TEXT NOT NULL      | auto-set on insert and update (via trigger) |
 
@@ -153,6 +154,8 @@ db/
   profile.py                 # CRUD for profile tables
   smoke_test.py              # comprehensive smoke test suite
   migrate_001_normalize.py   # migration: denormalized → normalized schema
+  migrate_002_add_passed_status.py  # migration: add 'passed' to status constraint + notes column
+  migrate_003_rename_reviewed_to_interested.py  # migration: rename 'reviewed' → 'interested'
 ```
 
 ## Key Design: upsert_job()
@@ -169,4 +172,15 @@ An optional `feed_url` parameter populates `feeds.url` for RSS feeds.
 
 JOINs sources and feeds tables to return `Job` objects with human-readable
 `source` and `feed` name strings for display. Supports filtering by status,
-source name, min_score, and configurable ordering.
+exclude_status, source name, min_score, and configurable ordering.
+The default index view uses `statuses=['new', 'interested']` to show only active jobs.
+
+## Status Workflow
+
+```
+new → passed       (user chose not to apply during review)
+new → interested   (user is interested, planning to apply)
+interested → applied   (application submitted)
+applied → rejected     (application was rejected by employer)
+applied → offer        (received an offer)
+```
