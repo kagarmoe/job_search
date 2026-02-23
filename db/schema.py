@@ -101,6 +101,12 @@ CREATE TABLE IF NOT EXISTS skills (
     sort_order  INTEGER
 );
 
+-- Feed fetch log: tracks last successful fetch per feed URL
+CREATE TABLE IF NOT EXISTS feed_fetch_log (
+    feed_url    TEXT PRIMARY KEY,
+    last_fetch  TEXT NOT NULL  -- ISO-8601 datetime of newest entry seen
+);
+
 -- Indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_jobs_status      ON jobs (status);
 CREATE INDEX IF NOT EXISTS idx_jobs_score       ON jobs (score);
