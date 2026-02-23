@@ -1,4 +1,4 @@
-Plan: Set Up Database (kimberlygarmoe-1)               
+Plan: Set Up Database (kimberlygarmoe-1)
 
  Context
 
@@ -7,73 +7,43 @@ Plan: Set Up Database (kimberlygarmoe-1)
  pipeline, profile backend, scoring, job tracking, resume/cover letter
  generation, and Flask web app.
 
- Database Schema
+ Database Schema (Normalized — kimberlygarmoe-17)
+
+ sources table — normalized job sources
+
+ Column: id    | Type: INTEGER PK    | Notes: autoincrement
+ Column: name  | Type: TEXT NOT NULL UNIQUE | Notes: "LinkedIn", "builtin.com", etc.
+
+ feeds table — normalized feed info (absorbs former feed_fetch_log)
+
+ Column: id         | Type: INTEGER PK    | Notes: autoincrement
+ Column: name       | Type: TEXT NOT NULL UNIQUE | Notes: feed title
+ Column: url        | Type: TEXT UNIQUE   | Notes: RSS feed URL (NULL for non-RSS)
+ Column: source_id  | Type: INTEGER FK    | Notes: REFERENCES sources(id)
+ Column: last_fetch | Type: TEXT          | Notes: ISO-8601 datetime of newest entry seen
 
  jobs table (serves Epics 2, 4, 5, 6)
 
- Column: id
- Type: INTEGER PK
- Notes: autoincrement
- ────────────────────────────────────────
- Column: title
- Type: TEXT NOT NULL
- Notes:
- ────────────────────────────────────────
- Column: url
- Type: TEXT NOT NULL UNIQUE
- Notes: dedup key
- ────────────────────────────────────────
- Column: description
- Type: TEXT
- Notes: cleaned text, not HTML
- ────────────────────────────────────────
- Column: posted_date
- Type: TEXT
- Notes: ISO 8601
- ────────────────────────────────────────
- Column: source
- Type: TEXT
- Notes: "LinkedIn", "builtin.com", etc.
- ────────────────────────────────────────
- Column: feed
- Type: TEXT
- Notes: "Manual Addition", "Web Search", RSS feed title
- ────────────────────────────────────────
- Column: score
- Type: REAL
- Notes: 0-10, NULL until scored (Epic 4)
- ────────────────────────────────────────
- Column: score_rationale
- Type: TEXT
- Notes: LLM explanation (Epic 4)
- ────────────────────────────────────────
- Column: status
- Type: TEXT NOT NULL DEFAULT 'new'
- Notes: new|reviewed|applied|rejected|offer (Epic 5)
- ────────────────────────────────────────
- Column: resume_md
- Type: TEXT
- Notes: per-job tailored resume (Epic 6)
- ────────────────────────────────────────
- Column: resume_pdf_path
- Type: TEXT
- Notes: filesystem path (Epic 6)
- ────────────────────────────────────────
- Column: cover_letter_md
- Type: TEXT
- Notes: per-job cover letter (Epic 6)
- ────────────────────────────────────────
- Column: cover_letter_pdf_path
- Type: TEXT
- Notes: filesystem path (Epic 6)
- ────────────────────────────────────────
- Column: created_at
- Type: TEXT
- Notes: auto-set on insert
- ────────────────────────────────────────
- Column: updated_at
- Type: TEXT
- Notes: auto-set on insert/update
+ Column: id         | Type: INTEGER PK    | Notes: autoincrement
+ Column: title      | Type: TEXT NOT NULL  | Notes:
+ Column: url        | Type: TEXT NOT NULL UNIQUE | Notes: dedup key
+ Column: description| Type: TEXT           | Notes: cleaned text, not HTML
+ Column: posted_date| Type: TEXT           | Notes: ISO 8601
+ Column: source_id  | Type: INTEGER FK     | Notes: REFERENCES sources(id)
+ Column: feed_id    | Type: INTEGER FK     | Notes: REFERENCES feeds(id)
+ Column: score      | Type: REAL           | Notes: 0-10, NULL until scored (Epic 4)
+ Column: score_rationale | Type: TEXT      | Notes: LLM explanation (Epic 4)
+ Column: status     | Type: TEXT NOT NULL DEFAULT 'new' | Notes: new|reviewed|applied|rejected|offer
+ Column: location_label | Type: TEXT       | Notes: Seattle|Remote|Review for location
+ Column: job_type   | Type: TEXT           | Notes:
+ Column: pay_range  | Type: TEXT           | Notes:
+ Column: contract_duration | Type: TEXT    | Notes:
+ Column: resume_md  | Type: TEXT           | Notes: per-job tailored resume (Epic 6)
+ Column: resume_pdf_path | Type: TEXT      | Notes: filesystem path (Epic 6)
+ Column: cover_letter_md | Type: TEXT      | Notes: per-job cover letter (Epic 6)
+ Column: cover_letter_pdf_path | Type: TEXT| Notes: filesystem path (Epic 6)
+ Column: created_at | Type: TEXT           | Notes: auto-set on insert
+ Column: updated_at | Type: TEXT           | Notes: auto-set on insert/update
 
  CHECK constraints: status IN allowed values, score 0-10 range.
 
@@ -192,18 +162,23 @@ Plan: Set Up Database (kimberlygarmoe-1)
  - jobs(score) — sort by relevance
  - jobs(posted_date) — sort by recency
  - jobs(status, score DESC) — composite for "new jobs by best score"
+ - jobs(source_id) — FK join optimization
+ - jobs(feed_id) — FK join optimization
+ - jobs(location_label) — filter by location
+ - feeds(source_id) — FK join optimization
  - skills(category) — filter skills by taxonomy category
 
  Module Structure
 
  db/
-   __init__.py       # exports get_db(), init_db()
-   connection.py     # get_db() with WAL mode, Row factory
-   schema.py         # all DDL as string constants
-   models.py         # dataclasses: Job, Skill, JobHistory, Education, etc.
-   jobs.py           # full CRUD for jobs (upsert, get, list, update
- status/score, delete)
-   profile.py        # stub CRUD for profile tables
+   __init__.py                # exports get_db(), init_db()
+   connection.py              # get_db() with WAL mode, Row factory
+   schema.py                  # all DDL as string constants
+   models.py                  # dataclasses: Source, Feed, Job, Skill, etc.
+   feeds.py                   # sources/feeds CRUD + fetch timestamps
+   jobs.py                    # full CRUD for jobs (upsert resolves names→IDs)
+   profile.py                 # stub CRUD for profile tables
+   migrate_001_normalize.py   # migration: denormalized → normalized schema
 
 
  - DB file: job_search.db at project root (added to .gitignore)
@@ -213,8 +188,12 @@ Plan: Set Up Database (kimberlygarmoe-1)
  Key design: upsert_job()
 
  Uses INSERT ... ON CONFLICT(url) DO UPDATE to handle dedup. Updates
- title/description/date/source/feed but preserves user-set fields (score, status,
-  resume, cover letter).
+ title/description/date/source_id/feed_id but preserves user-set fields
+ (score, status, resume, cover letter).
+
+ Callers pass human-readable source/feed names as strings. The function
+ resolves them to FK IDs internally via get_or_create_source/feed helpers.
+ An optional feed_url parameter populates the feeds.url column for RSS feeds.
 
  Implementation Steps
 

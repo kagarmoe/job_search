@@ -26,6 +26,7 @@ def test_critical_files_exist():
         "db/profile.py",
         "db/feeds.py",
         "db/schema.py",
+        "db/migrate_001_normalize.py",
         "templates/base.html",
         "templates/index.html",
         "templates/job_detail.html",

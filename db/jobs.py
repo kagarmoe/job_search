@@ -5,7 +5,18 @@ from __future__ import annotations
 import sqlite3
 
 from .connection import get_db
+from .feeds import get_or_create_feed, get_or_create_source
 from .models import Job
+
+# Base SELECT that JOINs sources and feeds for human-readable names
+_SELECT_JOBS = """
+    SELECT j.*,
+           s.name AS source,
+           f.name AS feed
+      FROM jobs j
+      LEFT JOIN sources s ON j.source_id = s.id
+      LEFT JOIN feeds   f ON j.feed_id   = f.id
+"""
 
 
 def upsert_job(
@@ -16,44 +27,65 @@ def upsert_job(
     posted_date: str | None = None,
     source: str | None = None,
     feed: str | None = None,
+    feed_url: str | None = None,
     db: sqlite3.Connection | None = None,
 ) -> Job:
     """Insert a job or update it if the URL already exists.
 
-    On conflict, updates title/description/posted_date/source/feed
+    Callers pass human-readable *source* and *feed* names; this function
+    resolves them to foreign-key IDs internally.
+
+    On conflict, updates title/description/posted_date/source_id/feed_id
     but preserves user-set fields (score, status, resume, cover letter).
     """
     conn = db or get_db()
+
+    source_id = get_or_create_source(source, db=conn) if source else None
+    feed_id = (
+        get_or_create_feed(feed, url=feed_url, source_id=source_id, db=conn)
+        if feed
+        else None
+    )
+
     cursor = conn.execute(
         """
-        INSERT INTO jobs (title, url, description, posted_date, source, feed)
+        INSERT INTO jobs (title, url, description, posted_date, source_id, feed_id)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(url) DO UPDATE SET
             title       = excluded.title,
             description = excluded.description,
             posted_date = excluded.posted_date,
-            source      = excluded.source,
-            feed        = excluded.feed
+            source_id   = excluded.source_id,
+            feed_id     = excluded.feed_id
         RETURNING *
         """,
-        (title, url, description, posted_date, source, feed),
+        (title, url, description, posted_date, source_id, feed_id),
     )
     row = cursor.fetchone()
     conn.commit()
-    return Job.from_row(row)
+
+    job = Job.from_row(row)
+    # Populate display names from the arguments we already have
+    job.source = source
+    job.feed = feed
+    return job
 
 
 def get_job(job_id: int, *, db: sqlite3.Connection | None = None) -> Job | None:
-    """Fetch a single job by ID."""
+    """Fetch a single job by ID (with source/feed names)."""
     conn = db or get_db()
-    row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    row = conn.execute(
+        _SELECT_JOBS + " WHERE j.id = ?", (job_id,)
+    ).fetchone()
     return Job.from_row(row) if row else None
 
 
 def get_job_by_url(url: str, *, db: sqlite3.Connection | None = None) -> Job | None:
-    """Fetch a single job by URL."""
+    """Fetch a single job by URL (with source/feed names)."""
     conn = db or get_db()
-    row = conn.execute("SELECT * FROM jobs WHERE url = ?", (url,)).fetchone()
+    row = conn.execute(
+        _SELECT_JOBS + " WHERE j.url = ?", (url,)
+    ).fetchone()
     return Job.from_row(row) if row else None
 
 
@@ -70,7 +102,7 @@ def list_jobs(
 
     Args:
         status: Filter by status (new, reviewed, applied, rejected, offer).
-        source: Filter by source.
+        source: Filter by source name.
         min_score: Only return jobs scored at or above this value.
         order_by: SQL ORDER BY clause. Default: created_at DESC.
         limit: Max number of results.
@@ -80,13 +112,13 @@ def list_jobs(
     params: list = []
 
     if status is not None:
-        clauses.append("status = ?")
+        clauses.append("j.status = ?")
         params.append(status)
     if source is not None:
-        clauses.append("source = ?")
+        clauses.append("s.name = ?")
         params.append(source)
     if min_score is not None:
-        clauses.append("score >= ?")
+        clauses.append("j.score >= ?")
         params.append(min_score)
 
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
@@ -104,7 +136,7 @@ def list_jobs(
     if order_by not in _ALLOWED_ORDER:
         order_by = "created_at DESC"
 
-    sql = f"SELECT * FROM jobs{where} ORDER BY {order_by}"
+    sql = f"{_SELECT_JOBS}{where} ORDER BY j.{order_by}"
     if limit is not None:
         sql += " LIMIT ?"
         params.append(limit)
@@ -124,7 +156,10 @@ def update_status(
     )
     row = cursor.fetchone()
     conn.commit()
-    return Job.from_row(row) if row else None
+    if row is None:
+        return None
+    # Re-fetch with JOINs for display names
+    return get_job(job_id, db=conn)
 
 
 def update_score(
@@ -142,7 +177,9 @@ def update_score(
     )
     row = cursor.fetchone()
     conn.commit()
-    return Job.from_row(row) if row else None
+    if row is None:
+        return None
+    return get_job(job_id, db=conn)
 
 
 def delete_job(job_id: int, *, db: sqlite3.Connection | None = None) -> bool:

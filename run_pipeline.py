@@ -56,6 +56,7 @@ def run_rss_fetch(conn) -> tuple[int, int]:
                 posted_date=row.get("Posted Date").strftime("%Y-%m-%d") if row.get("Posted Date") else None,
                 source=row.get("Source"),
                 feed=row.get("Feed"),
+                feed_url=row.get("Feed URL"),
                 db=conn,
             )
             upserted += 1

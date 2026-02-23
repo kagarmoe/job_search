@@ -4,6 +4,21 @@ All statements use IF NOT EXISTS so init_db() is idempotent.
 """
 
 SCHEMA_SQL = """
+-- Sources table: normalized job sources (e.g., "LinkedIn", "builtin.com")
+CREATE TABLE IF NOT EXISTS sources (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+
+-- Feeds table: normalized feed info (absorbs former feed_fetch_log)
+CREATE TABLE IF NOT EXISTS feeds (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL UNIQUE,
+    url         TEXT UNIQUE,
+    source_id   INTEGER REFERENCES sources(id),
+    last_fetch  TEXT  -- ISO-8601 datetime of newest entry seen
+);
+
 -- Jobs table: core entity for all job listings
 CREATE TABLE IF NOT EXISTS jobs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -11,8 +26,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     url             TEXT NOT NULL UNIQUE,
     description     TEXT,
     posted_date     TEXT,
-    source          TEXT,
-    feed            TEXT,
+    source_id       INTEGER REFERENCES sources(id),
+    feed_id         INTEGER REFERENCES feeds(id),
     score           REAL CHECK (score IS NULL OR (score >= 0 AND score <= 10)),
     score_rationale TEXT,
     status          TEXT NOT NULL DEFAULT 'new'
@@ -101,17 +116,14 @@ CREATE TABLE IF NOT EXISTS skills (
     sort_order  INTEGER
 );
 
--- Feed fetch log: tracks last successful fetch per feed URL
-CREATE TABLE IF NOT EXISTS feed_fetch_log (
-    feed_url    TEXT PRIMARY KEY,
-    last_fetch  TEXT NOT NULL  -- ISO-8601 datetime of newest entry seen
-);
-
 -- Indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_jobs_status      ON jobs (status);
 CREATE INDEX IF NOT EXISTS idx_jobs_score       ON jobs (score);
 CREATE INDEX IF NOT EXISTS idx_jobs_posted_date ON jobs (posted_date);
 CREATE INDEX IF NOT EXISTS idx_jobs_status_score ON jobs (status, score DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_location_label ON jobs (location_label);
+CREATE INDEX IF NOT EXISTS idx_jobs_source_id   ON jobs (source_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_feed_id     ON jobs (feed_id);
 CREATE INDEX IF NOT EXISTS idx_skills_category  ON skills (category);
+CREATE INDEX IF NOT EXISTS idx_feeds_source_id  ON feeds (source_id);
 """
