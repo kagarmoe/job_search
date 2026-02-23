@@ -26,7 +26,6 @@ from openai import OpenAI
 from db.connection import get_db
 from db.jobs import list_jobs, get_job, update_status, delete_job
 
-
 client = OpenAI()
 
 SEATTLE_ZIP = "98117"
@@ -37,10 +36,11 @@ ANALYSIS_PROMPT = """You are analyzing a job posting to determine its location e
 CRITICAL: You MUST read the ENTIRE job posting carefully before making any decisions.
 
 TARGET CRITERIA:
-- Within 20 miles of Seattle, WA (zip code 98117), OR
+- Located in the Seattle metro area (see city list below), OR
 - Fully remote work (not hybrid, not occasional remote)
 
 Seattle metro area cities: Seattle, Bellevue, Redmond, Kirkland, Bothell, Renton, Kent, Federal Way, Sammamish, Issaquah, Tacoma, Olympia
+Any job in one of these cities meets the location criteria.
 
 Analyze this job posting:
 
@@ -54,10 +54,10 @@ Your tasks:
    - Check both title AND full description for location information
    - Look for contradictions (e.g., "remote" in title but "onsite required" in description)
    - Check for hybrid requirements (e.g., "3 days per week in San Francisco office")
-   - Verify if location is within Seattle metro OR if truly 100% remote
-   
+   - Verify if location is in one of the Seattle metro cities listed above OR if truly 100% remote
+
    Return one of these EXACT labels:
-   - "Seattle" - Job is clearly in Seattle metro area (within 20 miles of 98117)
+   - "Seattle" - Job is clearly in one of the Seattle metro area cities listed above
    - "Remote" - Job is clearly fully remote (not hybrid, no office requirement)
    - "Review for location" - Cannot determine with certainty, needs manual review
    - "DELETE" - Clearly does NOT meet criteria (wrong location AND not remote)
@@ -265,6 +265,109 @@ def process_jobs(job_ids=None, dry_run=False):
     return stats
 
 
+def normalize_title(title: str) -> str:
+    """Strip location suffix from a job title for dedup comparison.
+
+    Preserves the company/source prefix so that different companies
+    with the same role title are NOT treated as duplicates.
+    """
+    t = title
+    # Strip " in City, STATE" / " in City, STATE - extra"
+    t = re.sub(r"\s+in\s+[\w\s]+,\s*\w{2}(\s*-.*)?$", "", t)
+    # Strip "(City, STATE)" at end
+    t = re.sub(r"\s*\([\w\s]+,\s*\w{2}\)\s*$", "", t)
+    # Strip " in United States"
+    t = re.sub(r"\s+in\s+United States$", "", t)
+    return t.strip()
+
+
+def deduplicate_jobs(dry_run: bool = False, window_days: int = 30) -> dict:
+    """Remove duplicate job postings based on normalized title.
+
+    Groups jobs by normalized title (location suffix stripped), then
+    clusters by posting date within *window_days*. Within each cluster
+    keeps the posting with the richest description (longest) and deletes
+    the rest.
+
+    Jobs re-posted more than *window_days* apart are treated as separate
+    openings and kept.
+    """
+    conn = get_db()
+
+    rows = conn.execute("""
+        SELECT id, title, posted_date, description,
+               LENGTH(description) AS desc_len
+        FROM jobs ORDER BY title
+    """).fetchall()
+
+    from collections import defaultdict
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        norm = normalize_title(r["title"])
+        groups[norm].append({
+            "id": r["id"],
+            "title": r["title"],
+            "posted_date": r["posted_date"],
+            "desc_len": r["desc_len"] or 0,
+        })
+
+    stats = {"groups": 0, "duplicates": 0, "deleted": 0}
+
+    for norm, jobs in sorted(groups.items()):
+        if len(jobs) < 2:
+            continue
+
+        stats["groups"] += 1
+
+        # Parse dates for clustering
+        def parse_date(d):
+            if not d:
+                return datetime.min
+            try:
+                return datetime.fromisoformat(d.split(" ")[0])
+            except ValueError:
+                return datetime.min
+
+        jobs.sort(key=lambda j: parse_date(j["posted_date"]))
+
+        # Cluster by time window
+        clusters: list[list[dict]] = []
+        for job in jobs:
+            job_date = parse_date(job["posted_date"])
+            if clusters and (job_date - parse_date(clusters[-1][0]["posted_date"])).days <= window_days:
+                clusters[-1].append(job)
+            else:
+                clusters.append([job])
+
+        for cluster in clusters:
+            if len(cluster) < 2:
+                continue
+
+            # Keep the one with the richest description
+            cluster.sort(key=lambda j: j["desc_len"], reverse=True)
+            keep = cluster[0]
+            dupes = cluster[1:]
+            stats["duplicates"] += len(dupes)
+
+            print(f"\n  Keeping: id={keep['id']} '{keep['title'][:70]}' (desc={keep['desc_len']})")
+            for d in dupes:
+                print(f"  Deleting: id={d['id']} '{d['title'][:70]}' (desc={d['desc_len']})")
+                if not dry_run:
+                    delete_job(d["id"])
+                    stats["deleted"] += 1
+
+    print(f"\n{'='*60}")
+    print("DEDUP SUMMARY")
+    print(f"{'='*60}")
+    print(f"Duplicate groups found: {stats['groups']}")
+    print(f"Duplicate postings: {stats['duplicates']}")
+    print(f"Deleted: {stats['deleted']}")
+    if dry_run:
+        print("(DRY RUN - no changes made)")
+
+    return stats
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Analyze job postings with LLM for location and data extraction"
@@ -280,15 +383,26 @@ def main():
         action="store_true",
         help="Preview analysis without making changes",
     )
+    parser.add_argument(
+        "--dedup",
+        action="store_true",
+        help="Remove duplicate job postings (no LLM analysis)",
+    )
     args = parser.parse_args()
-    
+
+    if args.dedup:
+        print("Job Deduplication")
+        print("=" * 60)
+        deduplicate_jobs(dry_run=args.dry_run)
+        return 0
+
     print("Job Analyzer")
     print("=" * 60)
-    print(f"Target: Seattle area (20mi from {SEATTLE_ZIP}) or remote")
+    print(f"Target: Seattle metro area cities or remote")
     print("=" * 60)
-    
+
     stats = process_jobs(job_ids=args.job_id, dry_run=args.dry_run)
-    
+
     return 0
 
 
