@@ -15,11 +15,12 @@ Usage:
 import re
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, jsonify
-from db.connection import get_db
+from db.connection import get_db, init_db
 from db.jobs import list_jobs, get_job, update_status, update_score
 from db.profile import get_all_meta, list_job_history, list_skills
 
 app = Flask(__name__)
+init_db()
 
 
 def is_recent_job(posted_date_str):
