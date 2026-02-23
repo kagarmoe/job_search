@@ -17,11 +17,11 @@
         <select name="status" id="status">
             <option value="">All</option>
             <option value="new" {% if status_filter == 'new' %}selected{% endif %}>New</option>
-            <option value="reviewed" {% if status_filter == 'reviewed' %}selected{% endif %}>Reviewed</option>
+            <option value="interested" {% if status_filter == 'interested' %}selected{% endif %}>Interested</option>
+            <option value="passed" {% if status_filter == 'passed' %}selected{% endif %}>Passed</option>
             <option value="applied" {% if status_filter == 'applied' %}selected{% endif %}>Applied</option>
             <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
             <option value="offer" {% if status_filter == 'offer' %}selected{% endif %}>Offer</option>
-            <option value="passed" {% if status_filter == 'passed' %}selected{% endif %}>Passed</option>
         </select>
     </div>
 

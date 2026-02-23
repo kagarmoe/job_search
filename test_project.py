@@ -28,6 +28,7 @@ def test_critical_files_exist():
         "db/schema.py",
         "db/migrate_001_normalize.py",
         "db/migrate_002_add_passed_status.py",
+        "db/migrate_003_rename_reviewed_to_interested.py",
         "templates/base.html",
         "templates/index.html",
         "templates/job_detail.html",

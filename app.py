@@ -99,7 +99,7 @@ def index():
     if status_filter:
         kwargs['status'] = status_filter
     else:
-        kwargs['exclude_status'] = 'passed'
+        kwargs['statuses'] = ['new', 'interested']
     if source_filter:
         kwargs['source'] = source_filter
     if min_score is not None:
@@ -198,7 +198,7 @@ def review_job(job_id):
     """Handle a review action (interested/skip/pass) and advance to next job."""
     action = request.form.get('action')
     if action == 'interested':
-        update_status(job_id, 'reviewed')
+        update_status(job_id, 'interested')
     elif action == 'pass':
         update_status(job_id, 'passed')
         reason = request.form.get('reason', '').strip()

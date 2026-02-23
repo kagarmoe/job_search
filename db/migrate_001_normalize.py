@@ -149,7 +149,7 @@ def migrate(db_path: str | Path | None = None) -> None:
             score           REAL CHECK (score IS NULL OR (score >= 0 AND score <= 10)),
             score_rationale TEXT,
             status          TEXT NOT NULL DEFAULT 'new'
-                                CHECK (status IN ('new', 'passed', 'reviewed', 'applied', 'rejected', 'offer')),
+                                CHECK (status IN ('new', 'interested', 'passed', 'applied', 'rejected', 'offer')),
             location_label  TEXT CHECK (location_label IS NULL OR location_label IN ('Seattle', 'Remote', 'Review for location')),
             job_type        TEXT,
             pay_range       TEXT,

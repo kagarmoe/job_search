@@ -105,7 +105,7 @@ h2 {
 }
 
 .status-new { background-color: #3498db; color: white; }
-.status-reviewed { background-color: #9b59b6; color: white; }
+.status-interested { background-color: #9b59b6; color: white; }
 .status-applied { background-color: #f39c12; color: white; }
 .status-passed { background-color: #bdc3c7; color: #555; }
 .status-rejected { background-color: #95a5a6; color: white; }

@@ -92,7 +92,7 @@ def get_job_by_url(url: str, *, db: sqlite3.Connection | None = None) -> Job | N
 def list_jobs(
     *,
     status: str | None = None,
-    exclude_status: str | None = None,
+    statuses: list[str] | None = None,
     source: str | None = None,
     min_score: float | None = None,
     order_by: str = "created_at DESC",
@@ -102,8 +102,8 @@ def list_jobs(
     """List jobs with optional filters.
 
     Args:
-        status: Filter by status (new, passed, reviewed, applied, rejected, offer).
-        exclude_status: Exclude jobs with this status.
+        status: Filter by single status.
+        statuses: Filter by multiple statuses (OR).
         source: Filter by source name.
         min_score: Only return jobs scored at or above this value.
         order_by: SQL ORDER BY clause. Default: created_at DESC.
@@ -116,9 +116,10 @@ def list_jobs(
     if status is not None:
         clauses.append("j.status = ?")
         params.append(status)
-    if exclude_status is not None:
-        clauses.append("j.status != ?")
-        params.append(exclude_status)
+    elif statuses is not None:
+        placeholders = ",".join("?" for _ in statuses)
+        clauses.append(f"j.status IN ({placeholders})")
+        params.extend(statuses)
     if source is not None:
         clauses.append("s.name = ?")
         params.append(source)
