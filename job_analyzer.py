@@ -30,7 +30,7 @@ from db.jobs import list_jobs, get_job, update_status, delete_job
 client = OpenAI()
 
 SEATTLE_ZIP = "98117"
-SEATTLE_METRO_CITIES = ["Seattle", "Bellevue", "Redmond", "Kirkland", "Bothell", "Renton", "Kent", "Federal Way", "Sammamish", "Issaquah"]
+SEATTLE_METRO_CITIES = ["Seattle", "Bellevue", "Redmond", "Kirkland", "Bothell", "Renton", "Kent", "Federal Way", "Sammamish", "Issaquah", "Tacoma", "Olympia"]
 
 ANALYSIS_PROMPT = """You are analyzing a job posting to determine its location eligibility and extract key information.
 
@@ -40,7 +40,7 @@ TARGET CRITERIA:
 - Within 20 miles of Seattle, WA (zip code 98117), OR
 - Fully remote work (not hybrid, not occasional remote)
 
-Seattle metro area cities (within 20 miles): Seattle, Bellevue, Redmond, Kirkland, Bothell, Renton, Kent, Federal Way, Sammamish, Issaquah
+Seattle metro area cities: Seattle, Bellevue, Redmond, Kirkland, Bothell, Renton, Kent, Federal Way, Sammamish, Issaquah, Tacoma, Olympia
 
 Analyze this job posting:
 
