@@ -7,7 +7,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+from datetime import datetime
+
 from db.connection import init_db, close_db
+from db.feeds import get_last_fetch, get_all_last_fetches, set_last_fetch
 from db.jobs import (
     upsert_job,
     get_job,
@@ -38,8 +41,8 @@ def main() -> None:
             ).fetchall()
         ]
         expected = {
-            "certifications", "education", "honors", "job_history",
-            "jobs", "profile_meta", "skills",
+            "certifications", "education", "feed_fetch_log", "honors",
+            "job_history", "jobs", "profile_meta", "skills",
         }
         assert expected.issubset(set(tables)), f"Missing tables: {expected - set(tables)}"
         print(f"[PASS] All {len(expected)} tables created: {sorted(expected)}")
@@ -160,6 +163,31 @@ def main() -> None:
         except Exception:
             conn.execute("ROLLBACK")
             print(f"[PASS] CHECK constraint rejects score > 10")
+
+        # Feed fetch log: no record yet
+        assert get_last_fetch("https://example.com/feed.xml", db=conn) is None
+        assert get_all_last_fetches(db=conn) == {}
+        print("[PASS] get_last_fetch() returns None for unknown feed")
+
+        # Set and retrieve a timestamp
+        ts1 = datetime(2026, 2, 20, 12, 0, 0)
+        set_last_fetch("https://example.com/feed.xml", ts1, db=conn)
+        assert get_last_fetch("https://example.com/feed.xml", db=conn) == ts1
+        print("[PASS] set_last_fetch() / get_last_fetch() round-trip")
+
+        # Upsert overwrites with newer timestamp
+        ts2 = datetime(2026, 2, 21, 8, 30, 0)
+        set_last_fetch("https://example.com/feed.xml", ts2, db=conn)
+        assert get_last_fetch("https://example.com/feed.xml", db=conn) == ts2
+        print("[PASS] set_last_fetch() upsert updates timestamp")
+
+        # Multiple feeds tracked independently
+        set_last_fetch("https://example.com/feed2.xml", ts1, db=conn)
+        all_fetches = get_all_last_fetches(db=conn)
+        assert len(all_fetches) == 2
+        assert all_fetches["https://example.com/feed.xml"] == ts2
+        assert all_fetches["https://example.com/feed2.xml"] == ts1
+        print("[PASS] get_all_last_fetches() returns all feeds")
 
         print("\n=== All smoke tests passed! ===")
 

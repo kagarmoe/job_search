@@ -11,13 +11,15 @@ FEED_URL = [
     "https://rss.app/feeds/W9LM5JvGa5oUynNf.xml"
 ]
 
-def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None):
+def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None, since=None):
     """
     Fetch jobs from RSS XML feed(s) and parse into DataFrame.
 
     Args:
         feed_url: URL string or list of URLs for XML RSS feeds
         hours_back: If specified, only return jobs from the last N hours
+        since: Dict mapping feed URL to datetime cutoff. Entries older than
+               the cutoff are skipped. Feeds not in the dict get a full fetch.
 
     Returns:
         DataFrame with job listings
@@ -26,11 +28,18 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None):
     if isinstance(feed_url, str):
         feed_url = [feed_url]
 
+    if since is None:
+        since = {}
+
     all_jobs = []
 
     # Process each feed
     for url in feed_url:
-        print(f"Fetching feed: {url}")
+        cutoff = since.get(url)
+        if cutoff:
+            print(f"Fetching feed: {url}  (since {cutoff.isoformat()})")
+        else:
+            print(f"Fetching feed: {url}  (full fetch)")
         feed = feedparser.parse(url)
 
         # Get feed title for source tracking
@@ -51,6 +60,10 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None):
                 if pub_date < cutoff_time:
                     continue
 
+            # Filter by per-feed last-fetch timestamp
+            if cutoff and pub_date <= cutoff:
+                continue
+
             # Extract job details
             all_jobs.append({
                 'Job Title': entry.get('title', 'N/A'),
@@ -58,7 +71,8 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None):
                 'Description': entry.get('summary', 'N/A'),
                 'Posted Date': pub_date,
                 'Source': entry.get('author', feed_title),
-                'Feed': feed_title
+                'Feed': feed_title,
+                'Feed URL': url,
             })
 
     # Create DataFrame

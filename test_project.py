@@ -24,6 +24,7 @@ def test_critical_files_exist():
         "db/jobs.py",
         "db/models.py",
         "db/profile.py",
+        "db/feeds.py",
         "db/schema.py",
         "templates/base.html",
         "templates/index.html",
@@ -59,6 +60,71 @@ def test_app_imports():
         return False
 
 
+def test_rss_since_filtering():
+    """Test that the since parameter filters entries by date."""
+    from datetime import datetime
+    from unittest.mock import patch, MagicMock
+    from rss_job_feed import fetch_and_parse_jobs
+    import time
+
+    # Build a fake feed with two entries: one old, one new
+    old_time = time.struct_time((2026, 2, 10, 12, 0, 0, 0, 41, 0))
+    new_time = time.struct_time((2026, 2, 22, 12, 0, 0, 0, 53, 0))
+
+    old_entry = MagicMock()
+    old_entry.published_parsed = old_time
+    old_entry.get = lambda k, d=None: {
+        "title": "Old Job", "link": "https://example.com/old",
+        "summary": "desc", "author": "src",
+    }.get(k, d)
+
+    new_entry = MagicMock()
+    new_entry.published_parsed = new_time
+    new_entry.get = lambda k, d=None: {
+        "title": "New Job", "link": "https://example.com/new",
+        "summary": "desc", "author": "src",
+    }.get(k, d)
+
+    fake_feed = MagicMock()
+    fake_feed.feed.get = lambda k, d=None: "Test Feed" if k == "title" else d
+    fake_feed.entries = [old_entry, new_entry]
+
+    with patch("rss_job_feed.feedparser.parse", return_value=fake_feed):
+        # No since — both entries returned
+        df_all = fetch_and_parse_jobs("https://example.com/feed.xml")
+        assert len(df_all) == 2, f"Expected 2 jobs, got {len(df_all)}"
+        print("[PASS] since=None returns all entries")
+
+        # since after old entry — only new entry returned
+        cutoff = datetime(2026, 2, 15, 0, 0, 0)
+        df_new = fetch_and_parse_jobs(
+            "https://example.com/feed.xml",
+            since={"https://example.com/feed.xml": cutoff},
+        )
+        assert len(df_new) == 1, f"Expected 1 job, got {len(df_new)}"
+        assert df_new.iloc[0]["Job Title"] == "New Job"
+        print("[PASS] since filters out old entries")
+
+        # since after both entries — nothing returned
+        cutoff_future = datetime(2026, 3, 1, 0, 0, 0)
+        df_none = fetch_and_parse_jobs(
+            "https://example.com/feed.xml",
+            since={"https://example.com/feed.xml": cutoff_future},
+        )
+        assert len(df_none) == 0, f"Expected 0 jobs, got {len(df_none)}"
+        print("[PASS] since after all entries returns empty DataFrame")
+
+        # since for different URL — no filtering applied
+        df_other = fetch_and_parse_jobs(
+            "https://example.com/feed.xml",
+            since={"https://other.com/feed.xml": cutoff},
+        )
+        assert len(df_other) == 2, f"Expected 2 jobs, got {len(df_other)}"
+        print("[PASS] since for unrelated URL does not filter")
+
+    return True
+
+
 def main():
     """Run all project tests."""
     print("=" * 60)
@@ -68,6 +134,7 @@ def main():
     tests = [
         test_critical_files_exist,
         test_app_imports,
+        test_rss_since_filtering,
     ]
     
     results = []

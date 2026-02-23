@@ -16,28 +16,35 @@ from datetime import datetime
 from pathlib import Path
 
 from db.connection import init_db
+from db.feeds import get_all_last_fetches, set_last_fetch
 from db.jobs import upsert_job
 from rss_job_feed import fetch_and_parse_jobs, FEED_URL
 
 
 def run_rss_fetch(conn) -> tuple[int, int]:
     """Fetch jobs from RSS feeds and store to database.
-    
+
+    Uses per-feed last-fetch timestamps to only retrieve new entries.
+    Falls back to a full fetch for feeds without a recorded timestamp.
+
     Returns:
         Tuple of (jobs_fetched, jobs_upserted)
     """
     print("=" * 60)
     print("FETCHING RSS FEEDS")
     print("=" * 60)
-    
-    jobs_df = fetch_and_parse_jobs(FEED_URL)
-    
+
+    # Load per-feed last-fetch timestamps (incremental mode)
+    since = get_all_last_fetches(db=conn)
+
+    jobs_df = fetch_and_parse_jobs(FEED_URL, since=since)
+
     if jobs_df.empty:
-        print("No jobs found in RSS feeds")
+        print("No new jobs found in RSS feeds")
         return 0, 0
-    
-    print(f"\nFound {len(jobs_df)} jobs from RSS feeds")
-    
+
+    print(f"\nFound {len(jobs_df)} new jobs from RSS feeds")
+
     # Store each job to database
     upserted = 0
     for _, row in jobs_df.iterrows():
@@ -55,7 +62,14 @@ def run_rss_fetch(conn) -> tuple[int, int]:
         except Exception as e:
             print(f"Error upserting job {row.get('URL')}: {e}")
             continue
-    
+
+    # Record the newest entry timestamp per feed URL for next run
+    for url in FEED_URL:
+        feed_rows = jobs_df[jobs_df["Feed URL"] == url]
+        if not feed_rows.empty:
+            newest = feed_rows["Posted Date"].max()
+            set_last_fetch(url, newest, db=conn)
+
     print(f"Stored {upserted} jobs from RSS feeds")
     return len(jobs_df), upserted
 
