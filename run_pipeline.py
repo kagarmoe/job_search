@@ -19,7 +19,7 @@ from db.connection import init_db
 from db.feeds import get_all_last_fetches, set_last_fetch
 from db.jobs import upsert_job
 from rss_job_feed import fetch_and_parse_jobs, FEED_URL
-
+from job_analyzer import process_jobs
 
 def run_rss_fetch(conn) -> tuple[int, int]:
     """Fetch jobs from RSS feeds and store to database.
@@ -126,6 +126,51 @@ def run_web_search(conn) -> tuple[int, int]:
     return len(jobs), upserted
 
 
+def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=False):
+    """Run the full job search pipeline.
+
+    Fetches jobs from configured sources, then runs the LLM analyzer
+    on new jobs unless skip_analyzer is True.
+
+    Args:
+        conn: Database connection. Created via init_db() if not provided.
+        rss_only: Only run RSS feed fetch.
+        search_only: Only run web search.
+        skip_analyzer: Skip LLM job analysis step.
+
+    Returns:
+        Tuple of (total_fetched, total_upserted).
+    """
+    if conn is None:
+        conn = init_db()
+
+    total_fetched = 0
+    total_upserted = 0
+
+    if not search_only:
+        rss_fetched, rss_upserted = run_rss_fetch(conn)
+        total_fetched += rss_fetched
+        total_upserted += rss_upserted
+
+    if not rss_only:
+        search_fetched, search_upserted = run_web_search(conn)
+        total_fetched += search_fetched
+        total_upserted += search_upserted
+
+    if not skip_analyzer:
+        print("\n" + "=" * 60)
+        print("RUNNING JOB ANALYZER")
+        print("=" * 60)
+        print("Analyzing new jobs with LLM for location and pay extraction...")
+        try:
+            process_jobs(dry_run=False)
+        except Exception as e:
+            print(f"Warning: Job analyzer failed: {e}")
+            print("Continuing without analysis...")
+
+    return total_fetched, total_upserted
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run unified job search pipeline"
@@ -146,72 +191,45 @@ def main():
         help="Skip LLM job analysis step",
     )
     args = parser.parse_args()
-    
+
     # Validate arguments
     if args.rss_only and args.search_only:
         print("Error: Cannot specify both --rss-only and --search-only")
         sys.exit(1)
-    
+
     start_time = datetime.now()
     print(f"\n{'*' * 60}")
     print(f"JOB SEARCH PIPELINE")
     print(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'*' * 60}\n")
-    
-    # Initialize database
+
     conn = init_db()
-    
-    total_fetched = 0
-    total_upserted = 0
-    
-    # Run RSS fetch unless search-only
-    if not args.search_only:
-        rss_fetched, rss_upserted = run_rss_fetch(conn)
-        total_fetched += rss_fetched
-        total_upserted += rss_upserted
-    
-    # Run web search unless rss-only
-    if not args.rss_only:
-        search_fetched, search_upserted = run_web_search(conn)
-        total_fetched += search_fetched
-        total_upserted += search_upserted
-    
-    # Summary
+
+    total_fetched, total_upserted = run_pipeline(
+        conn=conn,
+        rss_only=args.rss_only,
+        search_only=args.search_only,
+        skip_analyzer=args.skip_analyzer,
+    )
+
     end_time = datetime.now()
     duration = (end_time - start_time).total_seconds()
-    
+
     print("\n" + "=" * 60)
     print("PIPELINE COMPLETE")
     print("=" * 60)
     print(f"Duration: {duration:.1f} seconds")
     print(f"Jobs fetched: {total_fetched}")
     print(f"Jobs upserted: {total_upserted}")
-    
-    # Run LLM analyzer unless skipped
-    if not args.skip_analyzer:
-        print("\n" + "=" * 60)
-        print("RUNNING JOB ANALYZER")
-        print("=" * 60)
-        print("Analyzing new jobs with LLM for location and pay extraction...")
-        
-        try:
-            # Import here to avoid requiring OpenAI when skipping
-            from job_analyzer import process_jobs
-            process_jobs(dry_run=False)
-        except ImportError as e:
-            print(f"Warning: Could not import job_analyzer: {e}")
-        except Exception as e:
-            print(f"Warning: Job analyzer failed: {e}")
-            print("Continuing without analysis...")
-    
+
     # Database stats
     job_count = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
     new_count = conn.execute("SELECT COUNT(*) FROM jobs WHERE status = 'new'").fetchone()[0]
-    
+
     print(f"\nFinal database summary:")
     print(f"  Total jobs: {job_count}")
     print(f"  New/unreviewed: {new_count}")
-    
+
     print(f"\n{'*' * 60}")
 
 
