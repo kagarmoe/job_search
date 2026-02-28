@@ -247,6 +247,24 @@ def test_seattle_metro_consistency():
     return True
 
 
+def test_run_pipeline_calls_job_analyzer():
+    """Test that run_pipeline() calls process_jobs from job_analyzer."""
+    from unittest.mock import patch, MagicMock
+    import run_pipeline as rp
+
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = [0]
+
+    with patch.object(rp, 'run_rss_fetch', return_value=(0, 0)), \
+         patch.object(rp, 'run_web_search', return_value=(0, 0)), \
+         patch.object(rp, 'process_jobs') as mock_process_jobs:
+        rp.run_pipeline(conn=mock_conn)
+
+    mock_process_jobs.assert_called_once_with(dry_run=False)
+    print("[PASS] run_pipeline() calls process_jobs")
+    return True
+
+
 def main():
     """Run all project tests."""
     print("=" * 60)
@@ -259,6 +277,7 @@ def main():
         test_rss_since_filtering,
         test_location_filtering,
         test_seattle_metro_consistency,
+        test_run_pipeline_calls_job_analyzer,
     ]
     
     results = []

@@ -25,5 +25,5 @@ logs/
 # bv (beads viewer) local config and caches
 .bv/
 
-# claude files
+# claude local config and caches
 .claude/
