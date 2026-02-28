@@ -260,7 +260,7 @@ def test_run_pipeline_calls_job_analyzer():
          patch.object(rp, 'process_jobs') as mock_process_jobs:
         rp.run_pipeline(conn=mock_conn)
 
-    mock_process_jobs.assert_called_once()
+    mock_process_jobs.assert_called_once_with(dry_run=False)
     print("[PASS] run_pipeline() calls process_jobs")
     return True
 
