@@ -27,3 +27,7 @@ logs/
 
 # claude local config and caches
 .claude/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
