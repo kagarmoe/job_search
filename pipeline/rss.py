@@ -1,7 +1,7 @@
 """Fetch job listings from RSS feeds.
 
 Parses configured RSS XML feeds and returns job listings as plain dicts.
-Supports incremental fetching via per-feed timestamp cutoffs.
+Accepts optional per-feed datetime cutoffs to support incremental fetching.
 """
 
 import feedparser
@@ -65,8 +65,10 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None, since=None):
                 elif hasattr(entry, "updated_parsed") and entry.updated_parsed:
                     pub_date = datetime(*entry.updated_parsed[:6])
                 else:
+                    print(f"WARNING: No date field for '{entry.get('title', '?')}', using current time")
                     pub_date = datetime.now()
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
+                print(f"WARNING: Could not parse date for '{entry.get('title', '?')}': {e}, using current time")
                 pub_date = datetime.now()
 
             # Filter by time window if specified

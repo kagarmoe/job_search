@@ -217,7 +217,7 @@ SEATTLE_METRO = [
 ]
 ```
 
-**`pipeline/analyzer.py`** — Find the `ANALYSIS_PROMPT` string and update the location criteria. Search for "Seattle" and "98117" and replace with your city and zip. The prompt tells the LLM what counts as "local" vs. "remote" vs. "delete."
+**`pipeline/analyzer.py`** — Find the `ANALYSIS_PROMPT` string and update the location criteria. Search for "Seattle" and replace with your city. The prompt tells the LLM what counts as "local" vs. "remote" vs. "delete."
 
 **`pipeline/location.py`** — The regex patterns (`REMOTE_POSITIVE`, `REMOTE_NEGATIVE`) are generic and should work for any location. The `_SEATTLE_RE` regex auto-builds from the `SEATTLE_METRO` list you changed above, so no edits needed here.
 

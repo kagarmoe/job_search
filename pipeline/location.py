@@ -2,7 +2,7 @@
 
 Provides helpers to identify Seattle-area, US-wide, and remote job postings
 using regex patterns against title and description text. The main() function
-uses these to filter a jobs table.
+uses these to delete non-matching jobs from the database.
 """
 
 import re
@@ -66,6 +66,18 @@ def is_truly_remote(description: str | None, title: str = "") -> bool:
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Filter job postings by location criteria"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview filtering without deleting jobs",
+    )
+    args = parser.parse_args()
+
     all_jobs = list_jobs(order_by="title ASC")
 
     keep = []
@@ -92,9 +104,12 @@ def main():
         print(f"  {title}")
 
     if remove:
-        for jid, title in remove:
-            delete_job(jid)
-        print(f"\nDeleted {len(remove)} jobs from database.")
+        if not args.dry_run:
+            for jid, title in remove:
+                delete_job(jid)
+            print(f"\nDeleted {len(remove)} jobs from database.")
+        else:
+            print(f"\n(DRY RUN - would delete {len(remove)} jobs)")
 
     remaining = len(all_jobs) - len(remove)
     print(f"Jobs remaining: {remaining}")

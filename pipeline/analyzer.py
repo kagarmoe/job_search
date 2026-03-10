@@ -11,6 +11,7 @@ Jobs are labeled:
 - "Seattle" - In one of the configured metro area cities
 - "Remote" - Clearly fully remote
 - "Review for location" - Agent is uncertain, needs manual review
+- "DELETE" - Does not meet criteria; removed from database
 """
 
 import argparse
@@ -19,7 +20,7 @@ import openai
 from openai import OpenAI
 
 from db.jobs import list_jobs, get_job, update_analysis, delete_job
-from pipeline.constants import SEATTLE_ZIP, SEATTLE_METRO
+from pipeline.constants import SEATTLE_METRO
 
 client = OpenAI()
 

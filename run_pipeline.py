@@ -102,7 +102,7 @@ def run_web_search(conn) -> tuple[int, int]:
     try:
         jobs = search_daily()
     except Exception as e:
-        print(f"Web search failed: {e}")
+        print(f"ERROR: Web search failed ({type(e).__name__}): {e}")
         return 0, 0
     
     if not jobs:
