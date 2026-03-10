@@ -89,7 +89,7 @@ def run_web_search(conn) -> tuple[int, int]:
     try:
         from pipeline.search import search_daily
     except ImportError as e:
-        print(f"Failed to import startup_search: {e}")
+        print(f"Failed to import pipeline.search: {e}")
         return 0, 0
     
     try:

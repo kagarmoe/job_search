@@ -47,6 +47,13 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None, since=None):
             print(f"Fetching feed: {url}  (full fetch)")
         feed = feedparser.parse(url)
 
+        if feed.bozo:
+            print(f"WARNING: Feed parse error for {url}: {feed.bozo_exception}")
+        status = getattr(feed, "status", None)
+        if isinstance(status, int) and status >= 400:
+            print(f"WARNING: Feed returned HTTP {status} for {url}")
+            continue
+
         feed_title = feed.feed.get("title", url)
 
         for entry in feed.entries:

@@ -92,6 +92,7 @@ def test_rss_since_filtering():
     }.get(k, d)
 
     fake_feed = MagicMock()
+    fake_feed.bozo = False
     fake_feed.feed.get = lambda k, d=None: "Test Feed" if k == "title" else d
     fake_feed.entries = [old_entry, new_entry]
 
@@ -251,8 +252,72 @@ def test_seattle_metro_consistency():
     return True
 
 
+def test_normalize_title():
+    """Test that normalize_title strips location suffixes but preserves company info."""
+    from pipeline.dedup import normalize_title
+
+    # "in City, ST" suffix stripped
+    assert normalize_title("Technical Writer in Seattle, WA") == "Technical Writer"
+    assert normalize_title("Data Analyst in San Francisco, CA - Acme Corp") == "Data Analyst"
+
+    # "(City, ST)" suffix stripped
+    assert normalize_title("Sr Engineer (Bellevue, WA)") == "Sr Engineer"
+
+    # "in United States" stripped
+    assert normalize_title("Content Writer in United States") == "Content Writer"
+
+    # No location — unchanged
+    assert normalize_title("Technical Writer") == "Technical Writer"
+    assert normalize_title("Remote Technical Writer") == "Remote Technical Writer"
+
+    # Company prefix preserved (different companies = not duplicates)
+    assert normalize_title("Acme Corp - Writer in Seattle, WA") == "Acme Corp - Writer"
+    assert normalize_title("Beta Inc - Writer in Portland, OR") == "Beta Inc - Writer"
+
+    print("[PASS] normalize_title() strips location suffixes correctly")
+    return True
+
+
+def test_rss_dedup():
+    """Test that fetch_and_parse_jobs deduplicates entries with same title+URL."""
+    from unittest.mock import patch, MagicMock
+    from pipeline.rss import fetch_and_parse_jobs
+    import time
+
+    pub_time = time.struct_time((2026, 2, 20, 12, 0, 0, 0, 51, 0))
+
+    def make_entry(title, link):
+        entry = MagicMock()
+        entry.published_parsed = pub_time
+        entry.get = lambda k, d=None: {
+            "title": title, "link": link,
+            "summary": "desc", "author": "src",
+        }.get(k, d)
+        return entry
+
+    # Two entries with identical title+URL
+    entry_a = make_entry("Same Job", "https://example.com/job1")
+    entry_b = make_entry("Same Job", "https://example.com/job1")
+    # One entry with different URL
+    entry_c = make_entry("Same Job", "https://example.com/job2")
+
+    fake_feed = MagicMock()
+    fake_feed.bozo = False
+    fake_feed.feed.get = lambda k, d=None: "Test Feed" if k == "title" else d
+    fake_feed.entries = [entry_a, entry_b, entry_c]
+
+    with patch("pipeline.rss.feedparser.parse", return_value=fake_feed):
+        jobs = fetch_and_parse_jobs("https://example.com/feed.xml")
+
+    assert len(jobs) == 2, f"Expected 2 unique jobs, got {len(jobs)}"
+    urls = {j["URL"] for j in jobs}
+    assert urls == {"https://example.com/job1", "https://example.com/job2"}
+    print("[PASS] RSS deduplicates entries with same title+URL")
+    return True
+
+
 def test_run_pipeline_calls_job_analyzer():
-    """Test that run_pipeline() calls process_jobs from job_analyzer."""
+    """Test that run_pipeline() calls process_jobs from pipeline.analyzer."""
     from unittest.mock import patch, MagicMock
     import run_pipeline as rp
 
@@ -281,6 +346,8 @@ def main():
         test_rss_since_filtering,
         test_location_filtering,
         test_seattle_metro_consistency,
+        test_normalize_title,
+        test_rss_dedup,
         test_run_pipeline_calls_job_analyzer,
     ]
     

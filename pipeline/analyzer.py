@@ -1,12 +1,12 @@
 """LLM-powered job analyzer for location verification and data extraction.
 
 Analyzes job postings to:
-1. Verify if job is within 20 miles of 98117 (Seattle area) or truly remote
+1. Verify if job is in the Seattle metro area or truly remote
 2. Extract pay range information
 3. Clean up title formatting issues
 
 Jobs are labeled:
-- "Seattle" - Within 20 miles of Seattle zip 98117
+- "Seattle" - In one of the configured metro area cities
 - "Remote" - Clearly fully remote
 - "Review for location" - Agent is uncertain, needs manual review
 """
@@ -206,11 +206,8 @@ def process_jobs(job_ids=None, dry_run=False):
             if title_cleaned != job.title:
                 kwargs["title"] = title_cleaned
 
-            if len(kwargs) > 1 or "location_label" in kwargs:
-                update_analysis(job.id, **kwargs)
-                print(f"Updated: {', '.join(kwargs.keys())}")
-            else:
-                print("No updates needed")
+            update_analysis(job.id, **kwargs)
+            print(f"Updated: {', '.join(kwargs.keys())}")
         else:
             dry_run_msg = f"Would update: location_label='{location_label}', job_type='{job_type}', pay_range='{pay_range}'"
             if contract_duration != "NOT_SPECIFIED":

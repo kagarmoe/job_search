@@ -8,6 +8,7 @@ import re
 
 from pipeline.constants import SEATTLE_METRO
 from db.connection import get_db
+from db.jobs import delete_job
 
 # Single regex matching any metro city followed by ", WA" anywhere in a title
 _SEATTLE_RE = re.compile(
@@ -94,10 +95,8 @@ def main():
         print(f"  {title}")
 
     if remove:
-        ids = [r[0] for r in remove]
-        placeholders = ",".join("?" * len(ids))
-        conn.execute(f"DELETE FROM jobs WHERE id IN ({placeholders})", ids)
-        conn.commit()
+        for id, title in remove:
+            delete_job(id)
         print(f"\nDeleted {len(remove)} jobs from database.")
 
     remaining = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
