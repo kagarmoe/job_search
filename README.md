@@ -93,7 +93,7 @@ python run_pipeline.py --rss-only
 python run_pipeline.py --search-only
 ```
 
-The LLM analyzer filters each new job by location (Seattle metro or fully remote), extracts pay range, identifies job type, and cleans up title formatting.
+The LLM analyzer checks each new job against your location criteria (Seattle metro or fully remote). Jobs that clearly don't match are deleted. Jobs that match get their pay range extracted, job type identified, and title formatting cleaned up. Jobs the analyzer is unsure about are flagged "Review for location" for you to check manually.
 
 ### Add a job by hand
 
@@ -150,6 +150,23 @@ The job will now appear in the web app at http://localhost:5000 with status "new
 - The `title` and `source` are free text — type whatever helps you recognize the posting.
 - You can also pass `description="..."` if you want to paste in the job description.
 
+### Run pipeline steps individually
+
+Each pipeline step can be run on its own. Use `--dry-run` to preview what would change without modifying the database:
+
+```bash
+# Analyze jobs with the LLM (preview mode)
+python -m pipeline.analyzer --dry-run
+
+# Remove duplicate postings (preview mode)
+python -m pipeline.dedup --dry-run
+
+# Filter jobs by location (preview mode)
+python -m pipeline.location --dry-run
+```
+
+Drop `--dry-run` to apply changes for real.
+
 ### Import your profile
 
 ```bash
@@ -175,6 +192,7 @@ run_pipeline.py         CLI entry point for fetching and analyzing jobs
 profile_import.py       Import LinkedIn profile into database
 
 pipeline/               Job processing modules
+  __init__.py           Makes pipeline/ a Python package (empty file)
   constants.py          Shared constants (Seattle metro cities, etc.)
   rss.py                RSS feed fetcher
   search.py             Web search via OpenAI
@@ -209,8 +227,6 @@ This project is set up for technical writing roles in the Seattle area. To use i
 **`pipeline/constants.py`** — Replace the city list with your metro area:
 
 ```python
-SEATTLE_ZIP = "10001"  # Your zip code (used in analyzer prompt)
-
 SEATTLE_METRO = [
     "New York", "Brooklyn", "Jersey City", "Hoboken",
     # ... your metro cities
@@ -297,7 +313,7 @@ Jobs are stored in `job_search.db` (SQLite, gitignored). Key fields:
 | `description` | Full posting text |
 | `status` | `new`, `interested`, `passed`, `applied`, `rejected`, `offer` |
 | `score` | 0–10 relevance score |
-| `location_label` | `Seattle`, `Remote`, or `Review for location` |
+| `location_label` | `Seattle`, `Remote`, or `Review for location` (jobs labeled `DELETE` are removed) |
 | `job_type` | `Full-time`, `Contract`, `Part-time`, or `Not specified` |
 | `pay_range` | Extracted salary (e.g., `$120K-$150K/year`) |
 
