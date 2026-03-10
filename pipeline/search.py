@@ -1,9 +1,12 @@
-from openai import OpenAI
+"""Web search for job postings using OpenAI.
+
+Searches configured job boards for relevant postings and returns
+structured results as dicts.
+"""
+
 import json
-import csv
 import re
-from pathlib import Path
-from datetime import datetime
+from openai import OpenAI
 
 client = OpenAI()
 
@@ -47,7 +50,10 @@ def run_search(query: str) -> str:
             for content in getattr(item, "content", []):
                 if getattr(content, "type", None) in ("output_text", "text"):
                     text_parts.append(content.text)
-    return "\n".join(text_parts)
+    result = "\n".join(text_parts)
+    if not result.strip():
+        print(f"WARNING: Web search returned no text content for query: {query[:100]}")
+    return result
 
 
 def parse_json_response(raw: str) -> list[dict]:
@@ -66,34 +72,8 @@ def parse_json_response(raw: str) -> list[dict]:
     return json.loads(text)
 
 
-def save_jobs_csv(jobs: list[dict], filename: str) -> Path:
-    """Save job listings to CSV matching rss_jobs column structure."""
-    output_path = Path("jobs")
-    output_path.mkdir(exist_ok=True)
-    csv_file = output_path / filename
-
-    fieldnames = ["Job Title", "URL", "Description", "Posted Date", "Source", "Feed"]
-
-    with open(csv_file, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for job in jobs:
-            writer.writerow({
-                "Job Title": job.get("title", ""),
-                "URL": job.get("url", ""),
-                "Description": job.get("description", ""),
-                "Posted Date": job.get("posted_date", ""),
-                "Source": job.get("source", "Web Search"),
-                "Feed": job.get("feed", "Web Search"),
-            })
-
-    print(f"Saved {len(jobs)} jobs to {csv_file}")
-    return csv_file
-
-
 def search_since(since_date: str) -> list[dict]:
-    """
-    One-off search for all relevant roles posted since a given date.
+    """One-off search for all relevant roles posted since a given date.
 
     Args:
         since_date: Date string like "January 1, 2026"
@@ -116,14 +96,9 @@ Preferences:
         print(f"Found {len(jobs)} jobs")
         return jobs
     except (json.JSONDecodeError, ValueError) as e:
-        print(f"Could not parse response as JSON: {e}")
-        # Save raw response as fallback
-        today = datetime.now().strftime("%Y-%m-%d")
-        fallback = Path("jobs") / f"search_raw_{today}.txt"
-        Path("jobs").mkdir(exist_ok=True)
-        fallback.write_text(raw)
-        print(f"Raw response saved to {fallback}")
-        return []
+        print(f"ERROR: Could not parse web search response as JSON: {e}")
+        print(f"Raw response (first 500 chars): {raw[:500]}")
+        raise ValueError(f"Web search response could not be parsed: {e}") from e
 
 
 def search_daily() -> list[dict]:
@@ -146,19 +121,6 @@ Preferences:
         print(f"Found {len(jobs)} jobs")
         return jobs
     except (json.JSONDecodeError, ValueError) as e:
-        print(f"Could not parse response as JSON: {e}")
-        today = datetime.now().strftime("%Y-%m-%d")
-        fallback = Path("jobs") / f"search_raw_{today}.txt"
-        Path("jobs").mkdir(exist_ok=True)
-        fallback.write_text(raw)
-        print(f"Raw response saved to {fallback}")
-        return []
-
-
-if __name__ == "__main__":
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    # One-off: search since Jan 1, 2026
-    jobs = search_since("January 1, 2026")
-    if jobs:
-        save_jobs_csv(jobs, f"search_jobs_since_2026-01-01_{today}.csv")
+        print(f"ERROR: Could not parse web search response as JSON: {e}")
+        print(f"Raw response (first 500 chars): {raw[:500]}")
+        raise ValueError(f"Web search response could not be parsed: {e}") from e

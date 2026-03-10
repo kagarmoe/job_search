@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Project integrity tests.
+"""Project integrity and pipeline unit tests.
 
-Ensures critical files and components exist.
+Validates critical files exist and tests core pipeline components
+(RSS parsing, location filtering, deduplication, and pipeline orchestration).
 
 Run: python test_project.py
 """
@@ -14,12 +15,15 @@ def test_critical_files_exist():
     """Test that critical project files exist."""
     critical_files = [
         "app.py",
-        "job_analyzer.py",
         "run_pipeline.py",
-        "rss_job_feed.py",
-        "startup_search.py",
-        "filter_jobs_by_location.py",
         "profile_import.py",
+        "pipeline/__init__.py",
+        "pipeline/constants.py",
+        "pipeline/rss.py",
+        "pipeline/search.py",
+        "pipeline/analyzer.py",
+        "pipeline/dedup.py",
+        "pipeline/location.py",
         "db/connection.py",
         "db/jobs.py",
         "db/models.py",
@@ -67,7 +71,7 @@ def test_rss_since_filtering():
     """Test that the since parameter filters entries by date."""
     from datetime import datetime
     from unittest.mock import patch, MagicMock
-    from rss_job_feed import fetch_and_parse_jobs
+    from pipeline.rss import fetch_and_parse_jobs
     import time
 
     # Build a fake feed with two entries: one old, one new
@@ -89,40 +93,41 @@ def test_rss_since_filtering():
     }.get(k, d)
 
     fake_feed = MagicMock()
+    fake_feed.bozo = False
     fake_feed.feed.get = lambda k, d=None: "Test Feed" if k == "title" else d
     fake_feed.entries = [old_entry, new_entry]
 
-    with patch("rss_job_feed.feedparser.parse", return_value=fake_feed):
+    with patch("pipeline.rss.feedparser.parse", return_value=fake_feed):
         # No since — both entries returned
-        df_all = fetch_and_parse_jobs("https://example.com/feed.xml")
-        assert len(df_all) == 2, f"Expected 2 jobs, got {len(df_all)}"
+        all_jobs = fetch_and_parse_jobs("https://example.com/feed.xml")
+        assert len(all_jobs) == 2, f"Expected 2 jobs, got {len(all_jobs)}"
         print("[PASS] since=None returns all entries")
 
         # since after old entry — only new entry returned
         cutoff = datetime(2026, 2, 15, 0, 0, 0)
-        df_new = fetch_and_parse_jobs(
+        new_jobs = fetch_and_parse_jobs(
             "https://example.com/feed.xml",
             since={"https://example.com/feed.xml": cutoff},
         )
-        assert len(df_new) == 1, f"Expected 1 job, got {len(df_new)}"
-        assert df_new.iloc[0]["Job Title"] == "New Job"
+        assert len(new_jobs) == 1, f"Expected 1 job, got {len(new_jobs)}"
+        assert new_jobs[0]["Job Title"] == "New Job"
         print("[PASS] since filters out old entries")
 
         # since after both entries — nothing returned
         cutoff_future = datetime(2026, 3, 1, 0, 0, 0)
-        df_none = fetch_and_parse_jobs(
+        no_jobs = fetch_and_parse_jobs(
             "https://example.com/feed.xml",
             since={"https://example.com/feed.xml": cutoff_future},
         )
-        assert len(df_none) == 0, f"Expected 0 jobs, got {len(df_none)}"
-        print("[PASS] since after all entries returns empty DataFrame")
+        assert len(no_jobs) == 0, f"Expected 0 jobs, got {len(no_jobs)}"
+        print("[PASS] since after all entries returns empty list")
 
         # since for different URL — no filtering applied
-        df_other = fetch_and_parse_jobs(
+        other_jobs = fetch_and_parse_jobs(
             "https://example.com/feed.xml",
             since={"https://other.com/feed.xml": cutoff},
         )
-        assert len(df_other) == 2, f"Expected 2 jobs, got {len(df_other)}"
+        assert len(other_jobs) == 2, f"Expected 2 jobs, got {len(other_jobs)}"
         print("[PASS] since for unrelated URL does not filter")
 
     return True
@@ -130,7 +135,7 @@ def test_rss_since_filtering():
 
 def test_location_filtering():
     """Test is_seattle, is_us_wide, and is_truly_remote helpers."""
-    from filter_jobs_by_location import (
+    from pipeline.location import (
         is_seattle, is_us_wide, is_truly_remote, SEATTLE_METRO,
     )
 
@@ -234,21 +239,83 @@ def test_location_filtering():
 
 
 def test_seattle_metro_consistency():
-    """Test that SEATTLE_METRO lists match between filter and analyzer."""
-    from filter_jobs_by_location import SEATTLE_METRO
-    from job_analyzer import SEATTLE_METRO_CITIES
+    """Test that SEATTLE_METRO is shared from pipeline.constants."""
+    from pipeline.constants import SEATTLE_METRO
+    from pipeline.location import SEATTLE_METRO as LOC_METRO
 
-    assert set(SEATTLE_METRO) == set(SEATTLE_METRO_CITIES), (
-        f"City lists out of sync!\n"
-        f"  Only in filter: {set(SEATTLE_METRO) - set(SEATTLE_METRO_CITIES)}\n"
-        f"  Only in analyzer: {set(SEATTLE_METRO_CITIES) - set(SEATTLE_METRO)}"
+    assert LOC_METRO is SEATTLE_METRO, (
+        "pipeline.location should import SEATTLE_METRO from pipeline.constants"
     )
-    print("[PASS] SEATTLE_METRO and SEATTLE_METRO_CITIES are in sync")
+    print("[PASS] SEATTLE_METRO is shared from pipeline.constants")
+    return True
+
+
+def test_normalize_title():
+    """Test that normalize_title strips location suffixes but preserves company info."""
+    from pipeline.dedup import normalize_title
+
+    # "in City, ST" suffix stripped
+    assert normalize_title("Technical Writer in Seattle, WA") == "Technical Writer"
+    assert normalize_title("Data Analyst in San Francisco, CA - Acme Corp") == "Data Analyst"
+
+    # "(City, ST)" suffix stripped
+    assert normalize_title("Sr Engineer (Bellevue, WA)") == "Sr Engineer"
+
+    # "in United States" stripped
+    assert normalize_title("Content Writer in United States") == "Content Writer"
+
+    # No location — unchanged
+    assert normalize_title("Technical Writer") == "Technical Writer"
+    assert normalize_title("Remote Technical Writer") == "Remote Technical Writer"
+
+    # Company prefix preserved (different companies = not duplicates)
+    assert normalize_title("Acme Corp - Writer in Seattle, WA") == "Acme Corp - Writer"
+    assert normalize_title("Beta Inc - Writer in Portland, OR") == "Beta Inc - Writer"
+
+    print("[PASS] normalize_title() strips location suffixes correctly")
+    return True
+
+
+def test_rss_dedup():
+    """Test that fetch_and_parse_jobs deduplicates entries with same title+URL."""
+    from unittest.mock import patch, MagicMock
+    from pipeline.rss import fetch_and_parse_jobs
+    import time
+
+    pub_time = time.struct_time((2026, 2, 20, 12, 0, 0, 0, 51, 0))
+
+    def make_entry(title, link):
+        entry = MagicMock()
+        entry.published_parsed = pub_time
+        entry.get = lambda k, d=None: {
+            "title": title, "link": link,
+            "summary": "desc", "author": "src",
+        }.get(k, d)
+        return entry
+
+    # Two entries with identical title+URL
+    entry_a = make_entry("Same Job", "https://example.com/job1")
+    entry_b = make_entry("Same Job", "https://example.com/job1")
+    # One entry with different URL
+    entry_c = make_entry("Same Job", "https://example.com/job2")
+
+    fake_feed = MagicMock()
+    fake_feed.bozo = False
+    fake_feed.feed.get = lambda k, d=None: "Test Feed" if k == "title" else d
+    fake_feed.entries = [entry_a, entry_b, entry_c]
+
+    with patch("pipeline.rss.feedparser.parse", return_value=fake_feed):
+        jobs = fetch_and_parse_jobs("https://example.com/feed.xml")
+
+    assert len(jobs) == 2, f"Expected 2 unique jobs, got {len(jobs)}"
+    urls = {j["URL"] for j in jobs}
+    assert urls == {"https://example.com/job1", "https://example.com/job2"}
+    print("[PASS] RSS deduplicates entries with same title+URL")
     return True
 
 
 def test_run_pipeline_calls_job_analyzer():
-    """Test that run_pipeline() calls process_jobs from job_analyzer."""
+    """Test that run_pipeline() calls process_jobs from pipeline.analyzer."""
     from unittest.mock import patch, MagicMock
     import run_pipeline as rp
 
@@ -277,6 +344,8 @@ def main():
         test_rss_since_filtering,
         test_location_filtering,
         test_seattle_metro_consistency,
+        test_normalize_title,
+        test_rss_dedup,
         test_run_pipeline_calls_job_analyzer,
     ]
     

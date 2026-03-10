@@ -13,13 +13,12 @@ Usage:
 import argparse
 import sys
 from datetime import datetime
-from pathlib import Path
 
 from db.connection import init_db
 from db.feeds import get_all_last_fetches, set_last_fetch
 from db.jobs import upsert_job
-from rss_job_feed import fetch_and_parse_jobs, FEED_URL
-from job_analyzer import process_jobs
+from pipeline.rss import fetch_and_parse_jobs, FEED_URL
+from pipeline.analyzer import process_jobs
 
 def run_rss_fetch(conn) -> tuple[int, int]:
     """Fetch jobs from RSS feeds and store to database.
@@ -37,42 +36,47 @@ def run_rss_fetch(conn) -> tuple[int, int]:
     # Load per-feed last-fetch timestamps (incremental mode)
     since = get_all_last_fetches(db=conn)
 
-    jobs_df = fetch_and_parse_jobs(FEED_URL, since=since)
+    jobs = fetch_and_parse_jobs(FEED_URL, since=since)
 
-    if jobs_df.empty:
+    if not jobs:
         print("No new jobs found in RSS feeds")
         return 0, 0
 
-    print(f"\nFound {len(jobs_df)} new jobs from RSS feeds")
+    print(f"\nFound {len(jobs)} new jobs from RSS feeds")
 
     # Store each job to database
     upserted = 0
-    for _, row in jobs_df.iterrows():
+    failures = 0
+    for job in jobs:
         try:
+            posted = job.get("Posted Date")
             upsert_job(
-                title=row["Job Title"],
-                url=row["URL"],
-                description=row.get("Description"),
-                posted_date=row.get("Posted Date").strftime("%Y-%m-%d") if row.get("Posted Date") else None,
-                source=row.get("Source"),
-                feed=row.get("Feed"),
-                feed_url=row.get("Feed URL"),
+                title=job["Job Title"],
+                url=job["URL"],
+                description=job.get("Description"),
+                posted_date=posted.strftime("%Y-%m-%d") if posted else None,
+                source=job.get("Source"),
+                feed=job.get("Feed"),
+                feed_url=job.get("Feed URL"),
                 db=conn,
             )
             upserted += 1
         except Exception as e:
-            print(f"Error upserting job {row.get('URL')}: {e}")
-            continue
+            failures += 1
+            print(f"Error upserting job {job.get('URL')}: {e}")
+            if failures > 5:
+                print(f"ERROR: Too many upsert failures ({failures}), aborting RSS fetch")
+                break
 
     # Record the newest entry timestamp per feed URL for next run
     for url in FEED_URL:
-        feed_rows = jobs_df[jobs_df["Feed URL"] == url]
-        if not feed_rows.empty:
-            newest = feed_rows["Posted Date"].max()
+        feed_rows = [j for j in jobs if j.get("Feed URL") == url]
+        if feed_rows:
+            newest = max(j["Posted Date"] for j in feed_rows)
             set_last_fetch(url, newest, db=conn)
 
     print(f"Stored {upserted} jobs from RSS feeds")
-    return len(jobs_df), upserted
+    return len(jobs), upserted
 
 
 def run_web_search(conn) -> tuple[int, int]:
@@ -87,15 +91,18 @@ def run_web_search(conn) -> tuple[int, int]:
     
     # Lazy import to avoid requiring OPENAI_API_KEY when not using web search
     try:
-        from startup_search import search_daily
+        from pipeline.search import search_daily
     except ImportError as e:
-        print(f"Failed to import startup_search: {e}")
+        if "openai" in str(e).lower():
+            print("Skipping web search: openai package not installed")
+        else:
+            print(f"ERROR: Failed to import pipeline.search: {e}")
         return 0, 0
     
     try:
         jobs = search_daily()
     except Exception as e:
-        print(f"Web search failed: {e}")
+        print(f"ERROR: Web search failed ({type(e).__name__}): {e}")
         return 0, 0
     
     if not jobs:
@@ -106,11 +113,15 @@ def run_web_search(conn) -> tuple[int, int]:
     
     # Store each job to database
     upserted = 0
+    failures = 0
     for job in jobs:
+        if not job.get("url"):
+            print(f"WARNING: Skipping web search result with no URL: {job.get('title', 'unknown')}")
+            continue
         try:
             upsert_job(
                 title=job.get("title", ""),
-                url=job.get("url", ""),
+                url=job["url"],
                 description=job.get("description"),
                 posted_date=job.get("posted_date"),
                 source=job.get("source", "Web Search"),
@@ -119,8 +130,11 @@ def run_web_search(conn) -> tuple[int, int]:
             )
             upserted += 1
         except Exception as e:
+            failures += 1
             print(f"Error upserting job {job.get('url')}: {e}")
-            continue
+            if failures > 5:
+                print(f"ERROR: Too many upsert failures ({failures}), aborting web search store")
+                break
     
     print(f"Stored {upserted} jobs from web search")
     return len(jobs), upserted
@@ -165,8 +179,8 @@ def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=Fal
         try:
             process_jobs(dry_run=False)
         except Exception as e:
-            print(f"Warning: Job analyzer failed: {e}")
-            print("Continuing without analysis...")
+            print(f"ERROR: Job analyzer failed: {type(e).__name__}: {e}")
+            print("Continuing without analysis — new jobs will need manual review.")
 
     return total_fetched, total_upserted
 

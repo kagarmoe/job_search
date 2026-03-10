@@ -1,13 +1,14 @@
-#!/usr/bin/env python3
-"""Filter the jobs database to only keep Seattle metro and truly remote jobs.
+"""Location filtering for job postings.
 
-Removes jobs that are not in the greater Seattle area and not truly remote.
+Provides helpers to identify Seattle-area, US-wide, and remote job postings
+using regex patterns against title and description text. The main() function
+uses these to delete non-matching jobs from the database.
 """
 
 import re
-import sqlite3
 
-SEATTLE_METRO = ["Seattle", "Bellevue", "Redmond", "Kirkland", "Bothell", "Renton", "Kent", "Federal Way", "Sammamish", "Issaquah", "Tacoma", "Olympia"]
+from pipeline.constants import SEATTLE_METRO
+from db.jobs import list_jobs, delete_job
 
 # Single regex matching any metro city followed by ", WA" anywhere in a title
 _SEATTLE_RE = re.compile(
@@ -46,7 +47,7 @@ def is_us_wide(title: str) -> bool:
     return title.endswith("in United States")
 
 
-def is_truly_remote(description: str, title: str = "") -> bool:
+def is_truly_remote(description: str | None, title: str = "") -> bool:
     """Check if a job is truly remote based on description and/or title.
 
     Checks the title for 'Remote' as a location indicator (e.g. '(Remote - US)'),
@@ -65,45 +66,53 @@ def is_truly_remote(description: str, title: str = "") -> bool:
 
 
 def main():
-    conn = sqlite3.connect("job_search.db")
-    conn.row_factory = sqlite3.Row
+    import argparse
 
-    rows = conn.execute("SELECT id, title, description FROM jobs ORDER BY title").fetchall()
+    parser = argparse.ArgumentParser(
+        description="Filter job postings by location criteria"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview filtering without deleting jobs",
+    )
+    args = parser.parse_args()
+
+    all_jobs = list_jobs(order_by="title ASC")
 
     keep = []
     remove = []
 
-    for row in rows:
-        title = row["title"]
-        desc = row["description"] or ""
+    for job in all_jobs:
+        desc = job.description or ""
 
-        if is_seattle(title):
-            keep.append((row["id"], title, "seattle"))
-        elif is_us_wide(title):
-            keep.append((row["id"], title, "us-wide"))
-        elif is_truly_remote(desc, title):
-            keep.append((row["id"], title, "remote"))
+        if is_seattle(job.title):
+            keep.append((job.id, job.title, "seattle"))
+        elif is_us_wide(job.title):
+            keep.append((job.id, job.title, "us-wide"))
+        elif is_truly_remote(desc, job.title):
+            keep.append((job.id, job.title, "remote"))
         else:
-            remove.append((row["id"], title))
+            remove.append((job.id, job.title))
 
     print(f"=== KEEP ({len(keep)}) ===\n")
-    for id, title, reason in keep:
+    for jid, title, reason in keep:
         print(f"  [{reason:7s}] {title}")
 
     print(f"\n=== REMOVE ({len(remove)}) ===\n")
-    for id, title in remove:
+    for jid, title in remove:
         print(f"  {title}")
 
     if remove:
-        ids = [r[0] for r in remove]
-        placeholders = ",".join("?" * len(ids))
-        conn.execute(f"DELETE FROM jobs WHERE id IN ({placeholders})", ids)
-        conn.commit()
-        print(f"\nDeleted {len(remove)} jobs from database.")
+        if not args.dry_run:
+            for jid, title in remove:
+                delete_job(jid)
+            print(f"\nDeleted {len(remove)} jobs from database.")
+        else:
+            print(f"\n(DRY RUN - would delete {len(remove)} jobs)")
 
-    remaining = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+    remaining = len(all_jobs) - len(remove)
     print(f"Jobs remaining: {remaining}")
-    conn.close()
 
 
 if __name__ == "__main__":

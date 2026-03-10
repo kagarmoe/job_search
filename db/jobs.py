@@ -142,7 +142,7 @@ def list_jobs(
     if order_by not in _ALLOWED_ORDER:
         order_by = "created_at DESC"
 
-    sql = f"{_SELECT_JOBS}{where} ORDER BY j.{order_by}"
+    sql = f"{_SELECT_JOBS}{where} ORDER BY {order_by}"
     if limit is not None:
         sql += " LIMIT ?"
         params.append(limit)
@@ -232,6 +232,53 @@ def update_notes(
     row = cursor.fetchone()
     conn.commit()
     if row is None:
+        return None
+    return get_job(job_id, db=conn)
+
+
+def update_analysis(
+    job_id: int,
+    *,
+    location_label: str | None = None,
+    job_type: str | None = None,
+    pay_range: str | None = None,
+    contract_duration: str | None = None,
+    title: str | None = None,
+    db: sqlite3.Connection | None = None,
+) -> Job | None:
+    """Update a job's analysis fields. Only non-None values are updated.
+
+    Returns the updated job or None if not found.
+    """
+    conn = db or get_db()
+    updates = []
+    params = []
+
+    if location_label is not None:
+        updates.append("location_label = ?")
+        params.append(location_label)
+    if job_type is not None:
+        updates.append("job_type = ?")
+        params.append(job_type)
+    if pay_range is not None:
+        updates.append("pay_range = ?")
+        params.append(pay_range)
+    if contract_duration is not None:
+        updates.append("contract_duration = ?")
+        params.append(contract_duration)
+    if title is not None:
+        updates.append("title = ?")
+        params.append(title)
+
+    if not updates:
+        return get_job(job_id, db=conn)
+
+    # updated_at is set automatically by the jobs_updated_at trigger
+    params.append(job_id)
+    sql = f"UPDATE jobs SET {', '.join(updates)} WHERE id = ?"
+    cursor = conn.execute(sql, params)
+    conn.commit()
+    if cursor.rowcount == 0:
         return None
     return get_job(job_id, db=conn)
 
