@@ -273,6 +273,7 @@ def update_analysis(
     if not updates:
         return get_job(job_id, db=conn)
 
+    updates.append("updated_at = CURRENT_TIMESTAMP")
     params.append(job_id)
     sql = f"UPDATE jobs SET {', '.join(updates)} WHERE id = ?"
     cursor = conn.execute(sql, params)

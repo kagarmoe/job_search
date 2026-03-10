@@ -1,7 +1,8 @@
 """Location filtering for job postings.
 
-Classifies jobs as Seattle-area, remote, or neither using regex patterns
-against title and description text.
+Provides helpers to identify Seattle-area, US-wide, and remote job postings
+using regex patterns against title and description text. The main() function
+uses these to filter a jobs table.
 """
 
 import re
@@ -47,7 +48,7 @@ def is_us_wide(title: str) -> bool:
     return title.endswith("in United States")
 
 
-def is_truly_remote(description: str, title: str = "") -> bool:
+def is_truly_remote(description: str | None, title: str = "") -> bool:
     """Check if a job is truly remote based on description and/or title.
 
     Checks the title for 'Remote' as a location indicator (e.g. '(Remote - US)'),

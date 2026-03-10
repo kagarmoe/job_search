@@ -7,6 +7,3 @@ SEATTLE_METRO = [
     "Renton", "Kent", "Federal Way", "Sammamish", "Issaquah",
     "Tacoma", "Olympia",
 ]
-
-# Alias used by the analyzer module
-SEATTLE_METRO_CITIES = SEATTLE_METRO

@@ -50,7 +50,10 @@ def run_search(query: str) -> str:
             for content in getattr(item, "content", []):
                 if getattr(content, "type", None) in ("output_text", "text"):
                     text_parts.append(content.text)
-    return "\n".join(text_parts)
+    result = "\n".join(text_parts)
+    if not result.strip():
+        print(f"WARNING: Web search returned no text content for query: {query[:100]}")
+    return result
 
 
 def parse_json_response(raw: str) -> list[dict]:
@@ -93,7 +96,8 @@ Preferences:
         print(f"Found {len(jobs)} jobs")
         return jobs
     except (json.JSONDecodeError, ValueError) as e:
-        print(f"Could not parse response as JSON: {e}")
+        print(f"ERROR: Could not parse web search response as JSON: {e}")
+        print(f"Raw response (first 500 chars): {raw[:500]}")
         return []
 
 
@@ -117,5 +121,6 @@ Preferences:
         print(f"Found {len(jobs)} jobs")
         return jobs
     except (json.JSONDecodeError, ValueError) as e:
-        print(f"Could not parse response as JSON: {e}")
+        print(f"ERROR: Could not parse web search response as JSON: {e}")
+        print(f"Raw response (first 500 chars): {raw[:500]}")
         return []

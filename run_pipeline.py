@@ -46,6 +46,7 @@ def run_rss_fetch(conn) -> tuple[int, int]:
 
     # Store each job to database
     upserted = 0
+    failures = 0
     for job in jobs:
         try:
             posted = job.get("Posted Date")
@@ -61,8 +62,11 @@ def run_rss_fetch(conn) -> tuple[int, int]:
             )
             upserted += 1
         except Exception as e:
+            failures += 1
             print(f"Error upserting job {job.get('URL')}: {e}")
-            continue
+            if failures > 5:
+                print(f"ERROR: Too many upsert failures ({failures}), aborting RSS fetch")
+                break
 
     # Record the newest entry timestamp per feed URL for next run
     for url in FEED_URL:
@@ -89,7 +93,10 @@ def run_web_search(conn) -> tuple[int, int]:
     try:
         from pipeline.search import search_daily
     except ImportError as e:
-        print(f"Failed to import pipeline.search: {e}")
+        if "openai" in str(e).lower():
+            print("Skipping web search: openai package not installed")
+        else:
+            print(f"ERROR: Failed to import pipeline.search: {e}")
         return 0, 0
     
     try:
@@ -106,11 +113,15 @@ def run_web_search(conn) -> tuple[int, int]:
     
     # Store each job to database
     upserted = 0
+    failures = 0
     for job in jobs:
+        if not job.get("url"):
+            print(f"WARNING: Skipping web search result with no URL: {job.get('title', 'unknown')}")
+            continue
         try:
             upsert_job(
                 title=job.get("title", ""),
-                url=job.get("url", ""),
+                url=job["url"],
                 description=job.get("description"),
                 posted_date=job.get("posted_date"),
                 source=job.get("source", "Web Search"),
@@ -119,8 +130,11 @@ def run_web_search(conn) -> tuple[int, int]:
             )
             upserted += 1
         except Exception as e:
+            failures += 1
             print(f"Error upserting job {job.get('url')}: {e}")
-            continue
+            if failures > 5:
+                print(f"ERROR: Too many upsert failures ({failures}), aborting web search store")
+                break
     
     print(f"Stored {upserted} jobs from web search")
     return len(jobs), upserted
@@ -165,8 +179,8 @@ def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=Fal
         try:
             process_jobs(dry_run=False)
         except Exception as e:
-            print(f"Warning: Job analyzer failed: {e}")
-            print("Continuing without analysis...")
+            print(f"ERROR: Job analyzer failed: {type(e).__name__}: {e}")
+            print("Continuing without analysis — new jobs will need manual review.")
 
     return total_fetched, total_upserted
 

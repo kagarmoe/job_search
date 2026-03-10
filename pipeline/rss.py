@@ -7,7 +7,7 @@ Supports incremental fetching via per-feed timestamp cutoffs.
 import feedparser
 from datetime import datetime, timedelta
 
-# RSS feed URLs - can be a single URL string or a list of URLs
+# RSS feed URLs
 FEED_URL = [
     "https://rss.app/feeds/51cgVZegdBeT9hKP.xml",
     "https://rss.app/feeds/XYgV02vToQ4o46ti.xml",
@@ -48,6 +48,8 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None, since=None):
         feed = feedparser.parse(url)
 
         if feed.bozo:
+            # feedparser sets bozo for minor issues (e.g. encoding) too;
+            # entries may still be valid, so we warn but keep processing.
             print(f"WARNING: Feed parse error for {url}: {feed.bozo_exception}")
         status = getattr(feed, "status", None)
         if isinstance(status, int) and status >= 400:
@@ -57,12 +59,14 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None, since=None):
         feed_title = feed.feed.get("title", url)
 
         for entry in feed.entries:
-            # Parse the published date
-            if hasattr(entry, "published_parsed") and entry.published_parsed:
-                pub_date = datetime(*entry.published_parsed[:6])
-            elif hasattr(entry, "updated_parsed") and entry.updated_parsed:
-                pub_date = datetime(*entry.updated_parsed[:6])
-            else:
+            try:
+                if hasattr(entry, "published_parsed") and entry.published_parsed:
+                    pub_date = datetime(*entry.published_parsed[:6])
+                elif hasattr(entry, "updated_parsed") and entry.updated_parsed:
+                    pub_date = datetime(*entry.updated_parsed[:6])
+                else:
+                    pub_date = datetime.now()
+            except (ValueError, TypeError):
                 pub_date = datetime.now()
 
             # Filter by time window if specified
@@ -78,7 +82,6 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None, since=None):
             title = entry.get("title", "N/A")
             link = entry.get("link", "N/A")
 
-            # Deduplicate by (title, URL)
             key = (title, link)
             if key in seen:
                 continue
@@ -96,7 +99,6 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None, since=None):
                 }
             )
 
-    # Sort by date (newest first)
     all_jobs.sort(key=lambda j: j["Posted Date"], reverse=True)
 
     return all_jobs

@@ -13,6 +13,16 @@ from db.connection import get_db
 from db.jobs import delete_job
 
 
+def __parse_date(d):
+    """Parse a date string from the database for dedup clustering."""
+    if not d:
+        return datetime.min
+    try:
+        return datetime.fromisoformat(d.split(" ")[0])
+    except ValueError:
+        return datetime.min
+
+
 def normalize_title(title: str) -> str:
     """Strip location suffix from a job title for dedup comparison.
 
@@ -66,22 +76,13 @@ def deduplicate_jobs(dry_run: bool = False, window_days: int = 30) -> dict:
 
         stats["groups"] += 1
 
-        # Parse dates for clustering
-        def parse_date(d):
-            if not d:
-                return datetime.min
-            try:
-                return datetime.fromisoformat(d.split(" ")[0])
-            except ValueError:
-                return datetime.min
-
-        jobs.sort(key=lambda j: parse_date(j["posted_date"]))
+        jobs.sort(key=lambda j: __parse_date(j["posted_date"]))
 
         # Cluster by time window
         clusters: list[list[dict]] = []
         for job in jobs:
-            job_date = parse_date(job["posted_date"])
-            if clusters and (job_date - parse_date(clusters[-1][0]["posted_date"])).days <= window_days:
+            job_date = _parse_date(job["posted_date"])
+            if clusters and (job_date - _parse_date(clusters[-1][0]["posted_date"])).days <= window_days:
                 clusters[-1].append(job)
             else:
                 clusters.append([job])

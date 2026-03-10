@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Project integrity tests.
+"""Project integrity and pipeline unit tests.
 
-Ensures critical files and components exist.
+Validates critical files exist and tests core pipeline components
+(RSS parsing, location filtering, deduplication, and pipeline orchestration).
 
 Run: python test_project.py
 """
@@ -239,12 +240,9 @@ def test_location_filtering():
 
 def test_seattle_metro_consistency():
     """Test that SEATTLE_METRO is shared from pipeline.constants."""
-    from pipeline.constants import SEATTLE_METRO, SEATTLE_METRO_CITIES
+    from pipeline.constants import SEATTLE_METRO
     from pipeline.location import SEATTLE_METRO as LOC_METRO
 
-    assert SEATTLE_METRO is SEATTLE_METRO_CITIES, (
-        "SEATTLE_METRO_CITIES should be an alias for SEATTLE_METRO"
-    )
     assert LOC_METRO is SEATTLE_METRO, (
         "pipeline.location should import SEATTLE_METRO from pipeline.constants"
     )

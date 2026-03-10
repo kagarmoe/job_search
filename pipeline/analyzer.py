@@ -2,8 +2,10 @@
 
 Analyzes job postings to:
 1. Verify if job is in the Seattle metro area or truly remote
-2. Extract pay range information
-3. Clean up title formatting issues
+2. Identify employment type (full-time, contract, part-time)
+3. Extract pay range information
+4. Extract contract duration for contract roles
+5. Clean up title formatting issues
 
 Jobs are labeled:
 - "Seattle" - In one of the configured metro area cities
@@ -13,10 +15,11 @@ Jobs are labeled:
 
 import argparse
 import json
+import openai
 from openai import OpenAI
 
 from db.jobs import list_jobs, get_job, update_analysis, delete_job
-from pipeline.constants import SEATTLE_ZIP, SEATTLE_METRO_CITIES
+from pipeline.constants import SEATTLE_ZIP, SEATTLE_METRO
 
 client = OpenAI()
 
@@ -90,11 +93,17 @@ Return ONLY valid JSON (no markdown):
   "contract_duration": "duration for contracts (e.g., '6 months', 'Contract-to-hire') or NOT_SPECIFIED",
   "title_cleaned": "cleaned title text"
 }}}}
-""".format(metro_cities=", ".join(SEATTLE_METRO_CITIES))
+""".format(metro_cities=", ".join(SEATTLE_METRO))
 
 
 def analyze_job(job) -> dict:
-    """Analyze a job posting using LLM."""
+    """Analyze a job posting using the OpenAI LLM.
+
+    Returns a dict with keys: location_label, location_reasoning,
+    job_type, pay_range, contract_duration, title_cleaned.
+    On failure, returns safe defaults with location_label='Review for location'.
+    Raises on authentication or rate limit errors.
+    """
     prompt = ANALYSIS_PROMPT.format(
         title=job.title,
         description=job.description or "No description provided",
@@ -115,11 +124,23 @@ def analyze_job(job) -> dict:
         result = json.loads(response.choices[0].message.content)
         return result
 
-    except Exception as e:
-        print(f"Error analyzing job {job.id}: {e}")
+    except (openai.AuthenticationError, openai.RateLimitError):
+        raise
+    except json.JSONDecodeError as e:
+        print(f"ERROR: LLM returned invalid JSON for job {job.id}: {e}")
         return {
             "location_label": "Review for location",
-            "location_reasoning": f"Analysis failed: {str(e)}",
+            "location_reasoning": f"ANALYSIS FAILED (invalid JSON): {str(e)}",
+            "job_type": "Not specified",
+            "pay_range": "NOT_SPECIFIED",
+            "contract_duration": "NOT_SPECIFIED",
+            "title_cleaned": job.title,
+        }
+    except Exception as e:
+        print(f"ERROR: Unexpected error analyzing job {job.id}: {type(e).__name__}: {e}")
+        return {
+            "location_label": "Review for location",
+            "location_reasoning": f"ANALYSIS FAILED ({type(e).__name__}): {str(e)}",
             "job_type": "Not specified",
             "pay_range": "NOT_SPECIFIED",
             "contract_duration": "NOT_SPECIFIED",
@@ -128,10 +149,26 @@ def analyze_job(job) -> dict:
 
 
 def process_jobs(job_ids=None, dry_run=False):
-    """Process jobs through analyzer."""
-    # Get jobs to analyze
+    """Analyze jobs via LLM and update the database with results.
+
+    By default analyzes all jobs with status 'new'. Jobs labeled
+    'DELETE' by the analyzer are removed from the database.
+
+    Args:
+        job_ids: Specific job IDs to analyze. Defaults to all 'new' jobs.
+        dry_run: If True, print results without modifying the database.
+
+    Returns:
+        Dict of stats: seattle, remote, review, deleted, pay_found, title_cleaned.
+    """
     if job_ids:
-        jobs = [get_job(jid) for jid in job_ids if get_job(jid)]
+        jobs = []
+        for jid in job_ids:
+            job = get_job(jid)
+            if job:
+                jobs.append(job)
+            else:
+                print(f"WARNING: Job ID {jid} not found, skipping")
     else:
         # Analyze all jobs with status 'new'
         jobs = list_jobs(status="new")
@@ -152,7 +189,6 @@ def process_jobs(job_ids=None, dry_run=False):
         print(f"Job {job.id}: {job.title[:80]}")
         print(f"{'='*60}")
 
-        # Analyze job
         analysis = analyze_job(job)
 
         location_label = analysis.get("location_label", "Review for location")

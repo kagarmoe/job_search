@@ -279,7 +279,7 @@ The database recreates itself on the next run.
 python test_project.py
 ```
 
-Runs 6 test suites: file existence, app imports, RSS filtering, location classification, constant consistency, and pipeline integration.
+Runs 8 test suites: file existence, app imports, RSS filtering, location classification, constant consistency, title normalization, RSS deduplication, and pipeline integration.
 
 ```bash
 python -m db.smoke_test
@@ -462,6 +462,37 @@ This project is built with [Claude Code](https://claude.com/claude-code), an AI 
 - **Always review agent PRs.** Agents write working code, but you decide whether the approach is right.
 - **Check test coverage.** If the agent skips tests, ask it to add them.
 - **The agent follows `AGENTS.md`.** If you want to change a convention (naming, structure, workflow), update that file.
+
+### Claude Code skills and plugins
+
+This project uses several [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) — reusable prompt packages that teach the agent specialized workflows. Skills are invoked automatically when relevant, or manually with slash commands.
+
+#### Installed skills
+
+| Skill | What it does |
+|---|---|
+| **superpowers** | Core development workflows: brainstorming designs, writing implementation plans, TDD, git worktrees, code review, and subagent-driven development |
+| **pr-review-toolkit** | Runs multi-agent PR reviews — code quality, test coverage, error handling, comment accuracy, type design, and code simplification |
+| **elements-of-style** | Applies Strunk's writing rules to documentation, commit messages, and prose |
+| **episodic-memory** | Searches previous conversations so the agent remembers decisions across sessions |
+| **hookify** | Creates git hooks from conversation patterns to prevent recurring mistakes |
+
+#### How skills work
+
+Skills activate automatically based on context. When you say "review this PR," the agent invokes `pr-review-toolkit:review-pr`, which dispatches specialized subagents in parallel. When you say "let's build a feature," `superpowers:brainstorming` runs first to explore the design before any code is written.
+
+You can also invoke skills directly:
+
+```
+/pr-review-toolkit:review-pr          # Full PR review
+/pr-review-toolkit:review-pr tests    # Test coverage only
+/superpowers:brainstorming            # Design a new feature
+/commit                               # Commit with conventional message
+```
+
+#### Beads plugin
+
+The [Beads](https://github.com/beadsdotdev/beads) issue tracker is installed as a Claude Code plugin (not a skill). It provides `bd` commands for issue tracking and runs hooks that auto-load project context at the start of each session. See the "Issue tracking with Beads" section above.
 
 ### Code patterns
 
