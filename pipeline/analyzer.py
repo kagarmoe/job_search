@@ -105,7 +105,7 @@ def analyze_job(job) -> dict:
     Returns a dict with keys: location_label, location_reasoning,
     job_type, pay_range, contract_duration, title_cleaned.
     On failure, returns safe defaults with location_label='Review for location'.
-    Raises on authentication or rate limit errors.
+    Raises on authentication, rate limit, connection, and timeout errors.
     """
     prompt = ANALYSIS_PROMPT.format(
         title=job.title,
@@ -127,7 +127,8 @@ def analyze_job(job) -> dict:
         result = json.loads(response.choices[0].message.content)
         return result
 
-    except (openai.AuthenticationError, openai.RateLimitError):
+    except (openai.AuthenticationError, openai.RateLimitError,
+            openai.APIConnectionError, openai.APITimeoutError):
         raise
     except json.JSONDecodeError as e:
         print(f"ERROR: LLM returned invalid JSON for job {job.id}: {e}")

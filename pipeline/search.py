@@ -98,7 +98,7 @@ Preferences:
     except (json.JSONDecodeError, ValueError) as e:
         print(f"ERROR: Could not parse web search response as JSON: {e}")
         print(f"Raw response (first 500 chars): {raw[:500]}")
-        return []
+        raise ValueError(f"Web search response could not be parsed: {e}") from e
 
 
 def search_daily() -> list[dict]:
@@ -123,4 +123,4 @@ Preferences:
     except (json.JSONDecodeError, ValueError) as e:
         print(f"ERROR: Could not parse web search response as JSON: {e}")
         print(f"Raw response (first 500 chars): {raw[:500]}")
-        return []
+        raise ValueError(f"Web search response could not be parsed: {e}") from e
