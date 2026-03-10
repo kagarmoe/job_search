@@ -145,21 +145,78 @@ archive/                Deprecated scripts (reference only)
 docs/plans/             Design documents
 ```
 
-## Configuration
+## Customizing for Your Own Job Search
 
-### RSS feeds
+This project is set up for technical writing roles in the Seattle area. To use it for your own search, you need to change four things: your location, your target roles, your RSS feeds, and your profile.
 
-Edit `FEED_URL` in `pipeline/rss.py` to add or remove feeds.
+### 1. Change your location
 
-### Web search
+**`pipeline/constants.py`** — Replace the city list with your metro area:
 
-Edit `pipeline/search.py` to customize:
-- `ALLOWED_DOMAINS` — job boards to search (default: builtin.com, wellfound.com)
-- `ROLE_TITLES` — target role keywords
+```python
+SEATTLE_ZIP = "10001"  # Your zip code (used in analyzer prompt)
 
-### Location and analysis
+SEATTLE_METRO = [
+    "New York", "Brooklyn", "Jersey City", "Hoboken",
+    # ... your metro cities
+]
+```
 
-Edit the `ANALYSIS_PROMPT` in `pipeline/analyzer.py` to change location criteria, job type categories, or extraction rules. The shared city list lives in `pipeline/constants.py`.
+**`pipeline/analyzer.py`** — Find the `ANALYSIS_PROMPT` string and update the location criteria. Search for "Seattle" and "98117" and replace with your city and zip. The prompt tells the LLM what counts as "local" vs. "remote" vs. "delete."
+
+**`pipeline/location.py`** — The regex patterns (`REMOTE_POSITIVE`, `REMOTE_NEGATIVE`) are generic and should work for any location. The `_SEATTLE_RE` regex auto-builds from the `SEATTLE_METRO` list you changed above, so no edits needed here.
+
+### 2. Change your target roles
+
+**`pipeline/search.py`** — Update `ROLE_TITLES` with your job titles:
+
+```python
+ROLE_TITLES = [
+    "software engineer", "backend developer", "full stack engineer"
+]
+```
+
+Also update `ALLOWED_DOMAINS` if you want to search different job boards:
+
+```python
+ALLOWED_DOMAINS = ["builtin.com", "wellfound.com", "lever.co"]
+```
+
+### 3. Set up your own RSS feeds
+
+**`pipeline/rss.py`** — Replace the `FEED_URL` list with your feeds. Most job boards let you create RSS feeds from saved searches. For example:
+
+- **rss.app** — create feeds from any job board search URL
+- **LinkedIn** — some saved searches offer RSS
+- **Indeed/Glassdoor** — use rss.app to convert search URLs
+
+```python
+FEED_URL = [
+    "https://rss.app/feeds/your-feed-1.xml",
+    "https://rss.app/feeds/your-feed-2.xml",
+]
+```
+
+### 4. Add your profile
+
+Replace `resumes/LinkedIn_Profile.md` with your own resume in markdown format, then run:
+
+```bash
+python profile_import.py
+```
+
+The profile page at http://localhost:5000/profile will show your imported data.
+
+### 5. Start fresh
+
+Delete the existing database so you start with a clean slate:
+
+```bash
+rm job_search.db
+python run_pipeline.py --rss-only --skip-analyzer
+```
+
+The database recreates itself on the next run.
 
 ## Testing
 
