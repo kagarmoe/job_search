@@ -8,8 +8,7 @@ uses these to filter a jobs table.
 import re
 
 from pipeline.constants import SEATTLE_METRO
-from db.connection import get_db
-from db.jobs import delete_job
+from db.jobs import list_jobs, delete_job
 
 # Single regex matching any metro city followed by ", WA" anywhere in a title
 _SEATTLE_RE = re.compile(
@@ -67,40 +66,37 @@ def is_truly_remote(description: str | None, title: str = "") -> bool:
 
 
 def main():
-    conn = get_db()
-
-    rows = conn.execute("SELECT id, title, description FROM jobs ORDER BY title").fetchall()
+    all_jobs = list_jobs(order_by="title ASC")
 
     keep = []
     remove = []
 
-    for row in rows:
-        title = row["title"]
-        desc = row["description"] or ""
+    for job in all_jobs:
+        desc = job.description or ""
 
-        if is_seattle(title):
-            keep.append((row["id"], title, "seattle"))
-        elif is_us_wide(title):
-            keep.append((row["id"], title, "us-wide"))
-        elif is_truly_remote(desc, title):
-            keep.append((row["id"], title, "remote"))
+        if is_seattle(job.title):
+            keep.append((job.id, job.title, "seattle"))
+        elif is_us_wide(job.title):
+            keep.append((job.id, job.title, "us-wide"))
+        elif is_truly_remote(desc, job.title):
+            keep.append((job.id, job.title, "remote"))
         else:
-            remove.append((row["id"], title))
+            remove.append((job.id, job.title))
 
     print(f"=== KEEP ({len(keep)}) ===\n")
-    for id, title, reason in keep:
+    for jid, title, reason in keep:
         print(f"  [{reason:7s}] {title}")
 
     print(f"\n=== REMOVE ({len(remove)}) ===\n")
-    for id, title in remove:
+    for jid, title in remove:
         print(f"  {title}")
 
     if remove:
-        for id, title in remove:
-            delete_job(id)
+        for jid, title in remove:
+            delete_job(jid)
         print(f"\nDeleted {len(remove)} jobs from database.")
 
-    remaining = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+    remaining = len(all_jobs) - len(remove)
     print(f"Jobs remaining: {remaining}")
 
 

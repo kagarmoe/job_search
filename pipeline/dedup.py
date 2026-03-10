@@ -13,7 +13,7 @@ from db.connection import get_db
 from db.jobs import delete_job
 
 
-def __parse_date(d):
+def _parse_date(d):
     """Parse a date string from the database for dedup clustering."""
     if not d:
         return datetime.min
@@ -76,7 +76,7 @@ def deduplicate_jobs(dry_run: bool = False, window_days: int = 30) -> dict:
 
         stats["groups"] += 1
 
-        jobs.sort(key=lambda j: __parse_date(j["posted_date"]))
+        jobs.sort(key=lambda j: _parse_date(j["posted_date"]))
 
         # Cluster by time window
         clusters: list[list[dict]] = []

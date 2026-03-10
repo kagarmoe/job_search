@@ -23,6 +23,8 @@ from pipeline.constants import SEATTLE_ZIP, SEATTLE_METRO
 
 client = OpenAI()
 
+# Two-stage formatting: .format() fills metro_cities at import time,
+# leaving {{title}}/{{description}}/{{source}} for per-job .format() calls.
 ANALYSIS_PROMPT = """You are analyzing a job posting to determine its location eligibility and extract key information.
 
 CRITICAL: You MUST read the ENTIRE job posting carefully before making any decisions.
@@ -170,7 +172,6 @@ def process_jobs(job_ids=None, dry_run=False):
             else:
                 print(f"WARNING: Job ID {jid} not found, skipping")
     else:
-        # Analyze all jobs with status 'new'
         jobs = list_jobs(status="new")
 
     print(f"Analyzing {len(jobs)} jobs...")
@@ -212,7 +213,6 @@ def process_jobs(job_ids=None, dry_run=False):
         if pay_range != "NOT_SPECIFIED":
             stats["pay_found"] += 1
 
-        # Handle DELETE decision - remove jobs that clearly don't meet criteria
         if location_label == "DELETE":
             stats["deleted"] += 1
             if not dry_run:
@@ -222,7 +222,6 @@ def process_jobs(job_ids=None, dry_run=False):
                 print("Would delete (dry-run)")
             continue
 
-        # Update statistics for kept jobs
         if location_label == "Seattle":
             stats["seattle"] += 1
         elif location_label == "Remote":
@@ -230,7 +229,6 @@ def process_jobs(job_ids=None, dry_run=False):
         else:
             stats["review"] += 1
 
-        # Update job in database via db layer
         if not dry_run:
             kwargs = {"location_label": location_label}
             if job_type != "Not specified":
