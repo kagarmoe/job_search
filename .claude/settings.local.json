@@ -18,7 +18,9 @@
       "Bash(bd close:*)",
       "Bash(git -C /Users/kimberlygarmoe/repos/job_search add:*)",
       "Bash(git -C:*)",
-      "Bash(bd sync:*)"
+      "Bash(bd sync:*)",
+      "Bash(bd doctor:*)",
+      "Bash(bd:*)"
     ]
   }
 }
