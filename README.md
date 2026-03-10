@@ -95,6 +95,61 @@ python run_pipeline.py --search-only
 
 The LLM analyzer filters each new job by location (Seattle metro or fully remote), extracts pay range, identifies job type, and cleans up title formatting.
 
+### Add a job by hand
+
+If you find a job posting on a site like builtin.com or wellfound.com that isn't in your RSS feeds, you can add it directly using the Python interpreter.
+
+**Step 1: Open the Python interpreter.** Make sure your virtual environment is active (you should see `(.venv)` in your prompt), then type `python` and press Enter:
+
+```bash
+(.venv) $ python
+```
+
+You'll see something like this:
+
+```
+Python 3.10.2 (main, ...) [...]
+Type "help", "copyright", "credits" or "license" for more information.
+>>>
+```
+
+The `>>>` is the Python prompt. It means Python is waiting for you to type a command.
+
+**Step 2: Set up the database connection.** Type each line below, pressing Enter after each one. Python won't print anything — that's normal.
+
+```python
+>>> from db.connection import init_db
+>>> from db.jobs import upsert_job
+>>> init_db()
+```
+
+After `init_db()` you'll see a line like `<sqlite3.Connection object at 0x...>`. That's fine — it means the database is ready.
+
+**Step 3: Add the job.** Copy the URL from your browser, then type:
+
+```python
+>>> upsert_job(
+...     title="Acme Corp hiring Backend Engineer in Seattle, WA",
+...     url="https://builtin.com/job/12345",
+...     source="builtin.com",
+... )
+```
+
+When you press Enter after the first line, the prompt changes from `>>>` to `...` — that means Python is waiting for you to finish the statement. Keep typing each line. After the closing `)`, press Enter and Python will save the job to your database.
+
+**Step 4: Exit the interpreter.** Type `exit()` or press Ctrl+D:
+
+```python
+>>> exit()
+```
+
+The job will now appear in the web app at http://localhost:5000 with status "new."
+
+**Tips:**
+- The `url` must be unique. If you add the same URL twice, it updates the existing entry instead of creating a duplicate.
+- The `title` and `source` are free text — type whatever helps you recognize the posting.
+- You can also pass `description="..."` if you want to paste in the job description.
+
 ### Import your profile
 
 ```bash
