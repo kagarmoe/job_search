@@ -24,8 +24,8 @@ from pipeline.constants import SEATTLE_METRO
 
 client = OpenAI()
 
-# Two-stage formatting: .format() fills metro_cities at import time,
-# leaving {{title}}/{{description}}/{{source}} for per-job .format() calls.
+# All placeholders use .replace() to avoid crashing on job content
+# containing curly braces (common in tech job descriptions with JSON/code).
 ANALYSIS_PROMPT = """You are analyzing a job posting to determine its location eligibility and extract key information.
 
 CRITICAL: You MUST read the ENTIRE job posting carefully before making any decisions.
@@ -34,14 +34,14 @@ TARGET CRITERIA:
 - Located in the Seattle metro area (see city list below), OR
 - Fully remote work (not hybrid, not occasional remote)
 
-Seattle metro area cities: {metro_cities}
+Seattle metro area cities: {METRO_CITIES}
 Any job in one of these cities meets the location criteria.
 
 Analyze this job posting:
 
-TITLE: {{title}}
-DESCRIPTION: {{description}}
-SOURCE: {{source}}
+TITLE: {title}
+DESCRIPTION: {description}
+SOURCE: {source}
 
 Your tasks:
 
@@ -88,15 +88,15 @@ Your tasks:
    - Return cleaned title or original if no issues
 
 Return ONLY valid JSON (no markdown):
-{{{{
+{
   "location_label": "Seattle|Remote|Review for location|DELETE",
   "location_reasoning": "Brief explanation of your decision based on reading the ENTIRE posting",
   "job_type": "Full-time|Contract|Part-time|Not specified",
   "pay_range": "extracted pay with time period or NOT_SPECIFIED",
   "contract_duration": "duration for contracts (e.g., '6 months', 'Contract-to-hire') or NOT_SPECIFIED",
   "title_cleaned": "cleaned title text"
-}}}}
-""".format(metro_cities=", ".join(SEATTLE_METRO))
+}
+""".replace("{METRO_CITIES}", ", ".join(SEATTLE_METRO))
 
 
 def analyze_job(job) -> dict:
@@ -107,10 +107,12 @@ def analyze_job(job) -> dict:
     On failure, returns safe defaults with location_label='Review for location'.
     Raises on authentication, rate limit, connection, and timeout errors.
     """
-    prompt = ANALYSIS_PROMPT.format(
-        title=job.title,
-        description=job.description or "No description provided",
-        source=job.source or "Unknown",
+    prompt = ANALYSIS_PROMPT.replace(
+        "{title}", job.title
+    ).replace(
+        "{description}", job.description or "No description provided"
+    ).replace(
+        "{source}", job.source or "Unknown"
     )
 
     try:

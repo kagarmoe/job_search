@@ -142,7 +142,7 @@ def list_jobs(
     if order_by not in _ALLOWED_ORDER:
         order_by = "created_at DESC"
 
-    sql = f"{_SELECT_JOBS}{where} ORDER BY j.{order_by}"
+    sql = f"{_SELECT_JOBS}{where} ORDER BY {order_by}"
     if limit is not None:
         sql += " LIMIT ?"
         params.append(limit)

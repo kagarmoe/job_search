@@ -82,7 +82,7 @@ def deduplicate_jobs(dry_run: bool = False, window_days: int = 30) -> dict:
         clusters: list[list[dict]] = []
         for job in jobs:
             job_date = _parse_date(job["posted_date"])
-            if clusters and (job_date - _parse_date(clusters[-1][0]["posted_date"])).days <= window_days:
+            if clusters and (job_date - _parse_date(clusters[-1][-1]["posted_date"])).days <= window_days:
                 clusters[-1].append(job)
             else:
                 clusters.append([job])
