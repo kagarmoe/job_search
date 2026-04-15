@@ -135,11 +135,11 @@ def main() -> None:
         print(f"[PASS] list_jobs() returned {len(jobs)} job(s) with source names")
 
         # Update status
-        updated = update_status(job.id, "reviewed", db=conn)
+        updated = update_status(job.id, "interested", db=conn)
         assert updated is not None
-        assert updated.status == "reviewed"
+        assert updated.status == "interested"
         assert updated.source == "LinkedIn"  # JOINed name preserved
-        print(f"[PASS] update_status() -> reviewed")
+        print(f"[PASS] update_status() -> interested")
 
         # Update score
         scored = update_score(job.id, 8.5, "Great match for skills", db=conn)
@@ -150,9 +150,9 @@ def main() -> None:
 
         # List with filters
         jobs_new = list_jobs(status="new", db=conn)
-        assert len(jobs_new) == 0  # we changed it to reviewed
-        jobs_reviewed = list_jobs(status="reviewed", db=conn)
-        assert len(jobs_reviewed) == 1
+        assert len(jobs_new) == 0  # we changed it to interested
+        jobs_interested = list_jobs(status="interested", db=conn)
+        assert len(jobs_interested) == 1
         jobs_scored = list_jobs(min_score=5.0, db=conn)
         assert len(jobs_scored) == 1
         # Filter by source name

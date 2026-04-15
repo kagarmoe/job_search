@@ -44,9 +44,10 @@ def run_rss_fetch(conn) -> tuple[int, int]:
 
     print(f"\nFound {len(jobs)} new jobs from RSS feeds")
 
-    # Store each job to database
+    # Store each job to database, tracking which succeeded
     upserted = 0
     failures = 0
+    upserted_jobs = []
     for job in jobs:
         try:
             posted = job.get("Posted Date")
@@ -61,6 +62,7 @@ def run_rss_fetch(conn) -> tuple[int, int]:
                 db=conn,
             )
             upserted += 1
+            upserted_jobs.append(job)
         except Exception as e:
             failures += 1
             print(f"Error upserting job {job.get('URL')}: {e}")
@@ -68,9 +70,9 @@ def run_rss_fetch(conn) -> tuple[int, int]:
                 print(f"ERROR: Too many upsert failures ({failures}), aborting RSS fetch")
                 break
 
-    # Record the newest entry timestamp per feed URL for next run
+    # Record the newest entry timestamp per feed URL — only from successfully upserted jobs
     for url in FEED_URL:
-        feed_rows = [j for j in jobs if j.get("Feed URL") == url]
+        feed_rows = [j for j in upserted_jobs if j.get("Feed URL") == url]
         if feed_rows:
             newest = max(j["Posted Date"] for j in feed_rows)
             set_last_fetch(url, newest, db=conn)
