@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Add Job - Job Search{% endblock %}
+{% block content %}
+<h1>Add Job by URL</h1>
+<form method="post" action="{{ url_for('ingest') }}" class="ingest-form">
+    <label for="url">Job Posting URL:</label>
+    <input type="url" name="url" id="url" placeholder="https://job-boards.greenhouse.io/..." required>
+    <button type="submit" class="btn-primary">Add Job</button>
+</form>
+{% endblock %}

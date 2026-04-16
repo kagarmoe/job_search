@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 import os
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 from db.connection import get_db, init_db
-from db.jobs import list_jobs, get_job, update_status, update_score, update_notes, get_next_review_job, count_review_jobs
+from db.jobs import list_jobs, get_job, update_status, update_score, update_notes, get_next_review_job, count_review_jobs, upsert_job
 from db.profile import get_all_meta, list_job_history, list_skills
 
 app = Flask(__name__)
@@ -239,6 +239,28 @@ def profile():
         job_history=job_history,
         skills=skills,
     )
+
+
+@app.route('/ingest', methods=['GET', 'POST'])
+def ingest():
+    if request.method == 'GET':
+        return render_template('ingest.html')
+    url = request.form.get('url', '').strip()
+    if not url:
+        return jsonify({'error': 'URL required'}), 400
+    from pipeline.ingest import fetch_job_from_url
+    try:
+        job_data = fetch_job_from_url(url)
+    except Exception as e:
+        return jsonify({'error': f'Failed to fetch URL: {e}'}), 400
+    job = upsert_job(
+        title=job_data["title"],
+        url=job_data["url"],
+        description=job_data.get("description"),
+        source=job_data.get("source", "Manual"),
+        feed=job_data.get("feed", "Manual Ingest"),
+    )
+    return redirect(url_for('job_detail', job_id=job.id))
 
 
 if __name__ == '__main__':

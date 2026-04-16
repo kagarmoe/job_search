@@ -13,6 +13,7 @@
             <div class="nav-links">
                 <a href="{{ url_for('index') }}">Jobs</a>
                 <a href="{{ url_for('review') }}">Review{% if review_count %} <span class="nav-badge">{{ review_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('ingest') }}">Add Job</a>
                 <a href="{{ url_for('profile') }}">Profile</a>
             </div>
         </div>
