@@ -141,7 +141,86 @@ def run_web_search(conn) -> tuple[int, int]:
     return len(jobs), upserted
 
 
-def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=False):
+def run_ats_search(conn) -> tuple[int, int]:
+    """Search ATS platforms for jobs and store to database."""
+    print("\n" + "=" * 60)
+    print("ATS PLATFORM SEARCH")
+    print("=" * 60)
+
+    try:
+        from pipeline.ats_search import search_all_platforms, ATS_PLATFORMS
+    except ImportError as e:
+        print(f"ERROR: Failed to import pipeline.ats_search: {e}")
+        return 0, 0
+
+    # Build since dict from last_fetch timestamps
+    all_fetches = get_all_last_fetches(db=conn)
+    ats_since = {}
+    for domain, source_name, feed_name in ATS_PLATFORMS:
+        for url, ts in all_fetches.items():
+            if feed_name in url:
+                ats_since[feed_name] = ts
+                break
+
+    try:
+        jobs = search_all_platforms(since=ats_since)
+    except Exception as e:
+        print(f"ERROR: ATS search failed ({type(e).__name__}): {e}")
+        return 0, 0
+
+    if not jobs:
+        print("No jobs found from ATS platforms")
+        return 0, 0
+
+    print(f"\nFound {len(jobs)} jobs from ATS platforms")
+
+    upserted = 0
+    failures = 0
+    for job in jobs:
+        if not job.get("url"):
+            continue
+        try:
+            upsert_job(
+                title=job.get("title", ""),
+                url=job["url"],
+                description=job.get("description"),
+                source=job.get("source", "ATS"),
+                feed=job.get("feed", "ATS Search"),
+                db=conn,
+            )
+            upserted += 1
+        except Exception as e:
+            failures += 1
+            print(f"Error upserting job {job.get('url')}: {e}")
+            if failures > 5:
+                print(f"ERROR: Too many failures ({failures}), aborting")
+                break
+
+    # Update last_fetch for each ATS feed
+    now = datetime.now()
+    for domain, source_name, feed_name in ATS_PLATFORMS:
+        set_last_fetch(feed_name, now, db=conn)
+
+    print(f"Stored {upserted} jobs from ATS platforms")
+    return len(jobs), upserted
+
+
+def ingest_url(url: str, conn) -> None:
+    from pipeline.ingest import fetch_job_from_url
+    print(f"Ingesting: {url}")
+    job_data = fetch_job_from_url(url)
+    upsert_job(
+        title=job_data["title"],
+        url=job_data["url"],
+        description=job_data.get("description"),
+        source=job_data.get("source", "Manual"),
+        feed=job_data.get("feed", "Manual Ingest"),
+        db=conn,
+    )
+    print(f"Stored: {job_data['title']} ({job_data['source']})")
+
+
+def run_pipeline(conn=None, rss_only=False, search_only=False, ats_only=False, skip_analyzer=False):
     """Run the full job search pipeline.
 
     Fetches jobs from configured sources, then runs the LLM analyzer
@@ -151,6 +230,7 @@ def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=Fal
         conn: Database connection. Created via init_db() if not provided.
         rss_only: Only run RSS feed fetch.
         search_only: Only run web search.
+        ats_only: Only run ATS platform search.
         skip_analyzer: Skip LLM job analysis step.
 
     Returns:
@@ -162,15 +242,20 @@ def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=Fal
     total_fetched = 0
     total_upserted = 0
 
-    if not search_only:
+    if not search_only and not ats_only:
         rss_fetched, rss_upserted = run_rss_fetch(conn)
         total_fetched += rss_fetched
         total_upserted += rss_upserted
 
-    if not rss_only:
+    if not rss_only and not ats_only:
         search_fetched, search_upserted = run_web_search(conn)
         total_fetched += search_fetched
         total_upserted += search_upserted
+
+    if not rss_only and not search_only:
+        ats_fetched, ats_upserted = run_ats_search(conn)
+        total_fetched += ats_fetched
+        total_upserted += ats_upserted
 
     if not skip_analyzer:
         print("\n" + "=" * 60)
@@ -202,15 +287,33 @@ def main():
         help="Run only web search",
     )
     parser.add_argument(
+        "--ats-only",
+        action="store_true",
+        help="Run only ATS platform search",
+    )
+    parser.add_argument(
         "--skip-analyzer",
         action="store_true",
         help="Skip LLM job analysis step",
     )
+    parser.add_argument(
+        "--ingest-url",
+        type=str,
+        metavar="URL",
+        help="Ingest a single job posting by URL (no pipeline run)",
+    )
     args = parser.parse_args()
 
+    # Handle --ingest-url: ingest and return early
+    if args.ingest_url:
+        conn = init_db()
+        ingest_url(args.ingest_url, conn)
+        return
+
     # Validate arguments
-    if args.rss_only and args.search_only:
-        print("Error: Cannot specify both --rss-only and --search-only")
+    exclusive = sum([args.rss_only, args.search_only, args.ats_only])
+    if exclusive > 1:
+        print("Error: Cannot specify more than one of --rss-only, --search-only, --ats-only")
         sys.exit(1)
 
     start_time = datetime.now()
@@ -225,6 +328,7 @@ def main():
         conn=conn,
         rss_only=args.rss_only,
         search_only=args.search_only,
+        ats_only=args.ats_only,
         skip_analyzer=args.skip_analyzer,
     )
 
