@@ -24,9 +24,7 @@ from pipeline.constants import SEATTLE_METRO
 
 client = OpenAI()
 
-# All placeholders use .replace() to avoid crashing on job content
-# containing curly braces (common in tech job descriptions with JSON/code).
-ANALYSIS_PROMPT = """You are analyzing a job posting to determine its location eligibility and extract key information.
+SYSTEM_PROMPT = """You are analyzing a job posting to determine its location eligibility and extract key information.
 
 CRITICAL: You MUST read the ENTIRE job posting carefully before making any decisions.
 
@@ -36,12 +34,6 @@ TARGET CRITERIA:
 
 Seattle metro area cities: {METRO_CITIES}
 Any job in one of these cities meets the location criteria.
-
-Analyze this job posting:
-
-TITLE: {title}
-DESCRIPTION: {description}
-SOURCE: {source}
 
 Your tasks:
 
@@ -104,23 +96,21 @@ def analyze_job(job) -> dict:
 
     Returns a dict with keys: location_label, location_reasoning,
     job_type, pay_range, contract_duration, title_cleaned.
-    On failure, returns safe defaults with location_label='Review for location'.
-    Raises on authentication, rate limit, connection, and timeout errors.
+    Raises on all errors — callers should handle failures per-job.
     """
-    prompt = ANALYSIS_PROMPT.replace(
-        "{title}", job.title
-    ).replace(
-        "{description}", job.description or "No description provided"
-    ).replace(
-        "{source}", job.source or "Unknown"
+    user_content = (
+        f"Analyze this job posting:\n\n"
+        f"TITLE: {job.title}\n"
+        f"DESCRIPTION: {job.description or 'No description provided'}\n"
+        f"SOURCE: {job.source or 'Unknown'}"
     )
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a precise job posting analyzer. Return only valid JSON."},
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
             ],
             temperature=0.1,
             response_format={"type": "json_object"},
@@ -134,24 +124,7 @@ def analyze_job(job) -> dict:
         raise
     except json.JSONDecodeError as e:
         print(f"ERROR: LLM returned invalid JSON for job {job.id}: {e}")
-        return {
-            "location_label": "Review for location",
-            "location_reasoning": f"ANALYSIS FAILED (invalid JSON): {str(e)}",
-            "job_type": "Not specified",
-            "pay_range": "NOT_SPECIFIED",
-            "contract_duration": "NOT_SPECIFIED",
-            "title_cleaned": job.title,
-        }
-    except Exception as e:
-        print(f"ERROR: Unexpected error analyzing job {job.id}: {type(e).__name__}: {e}")
-        return {
-            "location_label": "Review for location",
-            "location_reasoning": f"ANALYSIS FAILED ({type(e).__name__}): {str(e)}",
-            "job_type": "Not specified",
-            "pay_range": "NOT_SPECIFIED",
-            "contract_duration": "NOT_SPECIFIED",
-            "title_cleaned": job.title,
-        }
+        raise
 
 
 def process_jobs(job_ids=None, dry_run=False):
@@ -187,14 +160,25 @@ def process_jobs(job_ids=None, dry_run=False):
         "deleted": 0,
         "pay_found": 0,
         "title_cleaned": 0,
+        "failed": 0,
     }
+    failed_ids = []
 
     for job in jobs:
         print(f"\n{'='*60}")
         print(f"Job {job.id}: {job.title[:80]}")
         print(f"{'='*60}")
 
-        analysis = analyze_job(job)
+        try:
+            analysis = analyze_job(job)
+        except (openai.AuthenticationError, openai.RateLimitError,
+                openai.APIConnectionError, openai.APITimeoutError):
+            raise  # Fatal errors — abort the entire batch
+        except Exception as e:
+            print(f"SKIPPED — analysis failed ({type(e).__name__}): {e}")
+            stats["failed"] += 1
+            failed_ids.append(job.id)
+            continue
 
         location_label = analysis.get("location_label", "Review for location")
         reasoning = analysis.get("location_reasoning", "")
@@ -262,6 +246,9 @@ def process_jobs(job_ids=None, dry_run=False):
     print(f"Deleted: {stats['deleted']}")
     print(f"Pay ranges found: {stats['pay_found']}")
     print(f"Titles cleaned: {stats['title_cleaned']}")
+    print(f"Failed (will retry next run): {stats['failed']}")
+    if failed_ids:
+        print(f"  Failed job IDs: {failed_ids}")
     print(f"\nTotal processed: {len(jobs)}")
     print(f"Total kept: {stats['seattle'] + stats['remote'] + stats['review']}")
 
