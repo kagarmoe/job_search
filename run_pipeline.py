@@ -18,7 +18,6 @@ from db.connection import init_db
 from db.feeds import get_all_last_fetches, set_last_fetch
 from db.jobs import upsert_job
 from pipeline.rss import fetch_and_parse_jobs, FEED_URL
-from pipeline.analyzer import process_jobs
 
 def run_rss_fetch(conn) -> tuple[int, int]:
     """Fetch jobs from RSS feeds and store to database.
@@ -179,6 +178,7 @@ def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=Fal
         print("=" * 60)
         print("Analyzing new jobs with LLM for location and pay extraction...")
         try:
+            from pipeline.analyzer import process_jobs
             process_jobs(dry_run=False)
         except Exception as e:
             print(f"ERROR: Job analyzer failed: {type(e).__name__}: {e}")

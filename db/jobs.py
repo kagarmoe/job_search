@@ -18,6 +18,17 @@ _SELECT_JOBS = """
       LEFT JOIN feeds   f ON j.feed_id   = f.id
 """
 
+# Allowlist for ORDER BY to prevent SQL injection
+_ALLOWED_ORDER = {
+    "created_at", "posted_date", "score", "status", "title", "id",
+    "created_at DESC", "created_at ASC",
+    "posted_date DESC", "posted_date ASC",
+    "score DESC", "score ASC",
+    "status ASC", "status DESC",
+    "title ASC", "title DESC",
+    "id ASC", "id DESC",
+}
+
 
 def upsert_job(
     title: str,
@@ -129,16 +140,6 @@ def list_jobs(
 
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
 
-    # Validate order_by to prevent injection — allow only known columns + direction
-    _ALLOWED_ORDER = {
-        "created_at", "posted_date", "score", "status", "title", "id",
-        "created_at DESC", "created_at ASC",
-        "posted_date DESC", "posted_date ASC",
-        "score DESC", "score ASC",
-        "status ASC", "status DESC",
-        "title ASC", "title DESC",
-        "id ASC", "id DESC",
-    }
     if order_by not in _ALLOWED_ORDER:
         order_by = "created_at DESC"
 

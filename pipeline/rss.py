@@ -45,7 +45,11 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None, since=None):
             print(f"Fetching feed: {url}  (since {cutoff.isoformat()})")
         else:
             print(f"Fetching feed: {url}  (full fetch)")
-        feed = feedparser.parse(url)
+        try:
+            feed = feedparser.parse(url)
+        except Exception as e:
+            print(f"ERROR: Failed to fetch feed {url}: {type(e).__name__}: {e}")
+            continue
 
         if feed.bozo:
             # feedparser sets bozo for minor issues (e.g. encoding) too;
@@ -82,7 +86,11 @@ def fetch_and_parse_jobs(feed_url=FEED_URL, hours_back=None, since=None):
                 continue
 
             title = entry.get("title", "N/A")
-            link = entry.get("link", "N/A")
+            link = entry.get("link")
+
+            if not link:
+                print(f"WARNING: Skipping entry with no URL: '{title}'")
+                continue
 
             key = (title, link)
             if key in seen:

@@ -22,7 +22,11 @@ from db.profile import get_all_meta, list_job_history, list_skills
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+if app.secret_key == 'dev-key-change-in-production':
+    print("WARNING: Using default secret key. Set SECRET_KEY environment variable for production.")
 init_db()
+
+VALID_STATUSES = {'new', 'interested', 'passed', 'applied', 'rejected', 'offer'}
 
 
 def is_recent_job(posted_date_str):
@@ -148,7 +152,9 @@ def update_job_status(job_id):
     new_status = request.form.get('status')
     if not new_status:
         return jsonify({'error': 'Status required'}), 400
-    
+    if new_status not in VALID_STATUSES:
+        return jsonify({'error': f'Invalid status. Must be one of: {", ".join(sorted(VALID_STATUSES))}'}), 400
+
     job = update_status(job_id, new_status)
     if not job:
         return jsonify({'error': 'Job not found'}), 404
@@ -163,7 +169,9 @@ def update_job_score(job_id):
         score = float(request.form.get('score'))
     except (TypeError, ValueError):
         return jsonify({'error': 'Invalid score'}), 400
-    
+    if not (0 <= score <= 10):
+        return jsonify({'error': 'Score must be between 0 and 10'}), 400
+
     rationale = request.form.get('rationale', '')
     
     job = update_score(job_id, score, rationale)
@@ -207,7 +215,7 @@ def review_job(job_id):
     elif action == 'skip':
         skipped = session.get('review_skipped', [])
         skipped.append(job_id)
-        session['review_skipped'] = skipped
+        session['review_skipped'] = skipped[-50:]  # Cap to avoid cookie overflow
 
     return redirect(url_for('review_next'))
 
