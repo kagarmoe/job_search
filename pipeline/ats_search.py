@@ -29,22 +29,26 @@ If no results found, return an empty array: []
 
 def search_ats_platform(
     domain: str,
-    *,
-    source: str,
-    feed: str,
     since: datetime | None = None,
 ) -> list[dict]:
     """Search a single ATS platform for job postings.
 
+    Resolves source and feed names from ATS_PLATFORMS based on domain.
+
     Args:
         domain: The ATS domain to search (e.g. "greenhouse.io").
-        source: Source name for result metadata (e.g. "Greenhouse").
-        feed: Feed name for result metadata (e.g. "Greenhouse Search").
         since: Optional datetime; if provided, restrict to postings since that date.
 
     Returns:
         List of dicts with keys: title, url, company, source, feed.
     """
+    # Resolve source/feed from platform config
+    source = domain.split(".")[0].capitalize()
+    feed = f"{source} Search"
+    for d, s, f in ATS_PLATFORMS:
+        if d == domain:
+            source, feed = s, f
+            break
     query = f'"technical writer" job postings on {domain}'
     if since is not None:
         query += f" published since {since.strftime('%Y-%m-%d')}"
@@ -107,10 +111,10 @@ def search_all_platforms(
     """
     all_jobs: list[dict] = []
 
-    for domain, source, feed in ATS_PLATFORMS:
+    for domain, source_name, feed_name in ATS_PLATFORMS:
         try:
-            since_dt = since.get(feed) if since else None
-            jobs = search_ats_platform(domain, source=source, feed=feed, since=since_dt)
+            since_dt = since.get(feed_name) if since else None
+            jobs = search_ats_platform(domain, since=since_dt)
             all_jobs.extend(jobs)
         except Exception as e:
             print(f"ERROR: ATS search failed for {source} ({domain}): {e}")

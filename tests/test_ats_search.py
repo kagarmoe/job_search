@@ -29,7 +29,7 @@ class TestSearchAtsPlatform:
 
         mock_client.responses.create.return_value = MagicMock(output=[message])
 
-        jobs = search_ats_platform("greenhouse.io", source="Greenhouse", feed="Greenhouse Search")
+        jobs = search_ats_platform("greenhouse.io")
         assert len(jobs) == 1
         assert jobs[0]["title"] == "Technical Writer"
         assert jobs[0]["url"] == "https://boards.greenhouse.io/acme/jobs/123"
@@ -56,7 +56,7 @@ class TestSearchAtsPlatform:
 
         mock_client.responses.create.return_value = MagicMock(output=[message])
 
-        jobs = search_ats_platform("greenhouse.io", source="Greenhouse", feed="Greenhouse Search")
+        jobs = search_ats_platform("greenhouse.io")
         assert len(jobs) == 1
         assert jobs[0]["title"] == "Good Job"
 
@@ -73,7 +73,7 @@ class TestSearchAtsPlatform:
 
         mock_client.responses.create.return_value = MagicMock(output=[message])
 
-        jobs = search_ats_platform("greenhouse.io", source="Greenhouse", feed="Greenhouse Search")
+        jobs = search_ats_platform("greenhouse.io")
         assert jobs == []
 
     @patch("pipeline.ats_search.client")
@@ -90,7 +90,7 @@ class TestSearchAtsPlatform:
         mock_client.responses.create.return_value = MagicMock(output=[message])
 
         since = datetime(2026, 4, 10, 12, 0, 0)
-        search_ats_platform("greenhouse.io", source="Greenhouse", feed="Greenhouse Search", since=since)
+        search_ats_platform("greenhouse.io", since=since)
 
         call_args = mock_client.responses.create.call_args
         query = call_args.kwargs["input"]
@@ -114,7 +114,7 @@ class TestSearchAtsPlatform:
 
         mock_client.responses.create.return_value = MagicMock(output=[message])
 
-        jobs = search_ats_platform("ashbyhq.com", source="Ashby", feed="Ashby Search")
+        jobs = search_ats_platform("ashbyhq.com")
         assert len(jobs) == 1
         assert jobs[0]["source"] == "Ashby"
         assert jobs[0]["feed"] == "Ashby Search"
