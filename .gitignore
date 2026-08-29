@@ -31,6 +31,7 @@ logs/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
- 
+
+.beads/.jsonl.lock
 .beads/backup*
 .claude/settings*
