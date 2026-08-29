@@ -32,5 +32,7 @@ logs/
 .dolt/
 *.db
  
-.beads/backup*
 .claude/settings*
+
+# beads runtime state (dolt server, backups, caches)
+.beads/
