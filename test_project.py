@@ -13,6 +13,7 @@ from pathlib import Path
 
 def test_critical_files_exist():
     """Test that critical project files exist."""
+    project_root = Path(__file__).parent
     critical_files = [
         "app.py",
         "run_pipeline.py",
@@ -38,10 +39,10 @@ def test_critical_files_exist():
         "templates/job_detail.html",
         "templates/profile.html",
     ]
-    
+
     missing = []
     for file_path in critical_files:
-        if not Path(file_path).exists():
+        if not (project_root / file_path).exists():
             missing.append(file_path)
             print(f"[FAIL] Missing critical file: {file_path}")
     
@@ -324,7 +325,7 @@ def test_run_pipeline_calls_job_analyzer():
 
     with patch.object(rp, 'run_rss_fetch', return_value=(0, 0)), \
          patch.object(rp, 'run_web_search', return_value=(0, 0)), \
-         patch.object(rp, 'process_jobs') as mock_process_jobs:
+         patch('pipeline.analyzer.process_jobs') as mock_process_jobs:
         rp.run_pipeline(conn=mock_conn)
 
     mock_process_jobs.assert_called_once_with(dry_run=False)

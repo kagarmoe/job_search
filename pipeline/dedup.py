@@ -53,7 +53,7 @@ def deduplicate_jobs(dry_run: bool = False, window_days: int = 30) -> dict:
     conn = get_db()
 
     rows = conn.execute("""
-        SELECT id, title, posted_date, description,
+        SELECT id, title, posted_date,
                LENGTH(description) AS desc_len
         FROM jobs ORDER BY title
     """).fetchall()

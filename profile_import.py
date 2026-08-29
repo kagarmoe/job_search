@@ -129,14 +129,41 @@ def parse_profile_markdown(md_path: Path) -> dict:
             sort_order += 1
     
     # Extract skills from Top Skills and Languages sections
+    # Map known skills to their correct schema categories
+    _SKILL_CATEGORIES = {
+        # writing
+        "Technical Writing": "writing",
+        "Content Strategy": "content_strategy",
+        "Content Design": "content_strategy",
+        "Documentation": "writing",
+        "Editing": "writing",
+        "Copywriting": "writing",
+        # tools & dev
+        "API Documentation": "api_dev_tools",
+        "REST APIs": "api_dev_tools",
+        "GraphQL": "api_dev_tools",
+        "Git": "tools",
+        "DITA": "tools",
+        "Markdown": "tools",
+        "Confluence": "tools",
+        "Jira": "tools",
+        # AI/ML
+        "Machine Learning": "ai_ml",
+        "AI": "ai_ml",
+        "LLMs": "ai_ml",
+        # Taxonomy / IA
+        "Information Architecture": "taxonomy_ia",
+        "Taxonomy": "taxonomy_ia",
+    }
     top_skills = re.search(r'## Top Skills\n\n(.+?)(?=\n## )', content, re.DOTALL)
     if top_skills:
         for line in top_skills.group(1).strip().split('\n'):
             if line.startswith('- '):
                 skill_name = line[2:].strip()
+                category = _SKILL_CATEGORIES.get(skill_name, "writing")
                 profile["skills"].append({
                     "name": skill_name,
-                    "category": "writing",  # Default category
+                    "category": category,
                     "proficiency": "expert",
                 })
     
