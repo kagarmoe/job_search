@@ -56,7 +56,12 @@ def map_job(record: dict, query: str) -> dict:
 def _get(params: dict) -> dict:
     url = f"{API_URL}?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(
-        url, headers={"Authorization": f"Bearer {_api_key()}"}
+        url,
+        headers={
+            "Authorization": f"Bearer {_api_key()}",
+            # WAF returns 403 to urllib's default Python-urllib/3.x user-agent
+            "User-Agent": "job-search-pipeline/1.0",
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:

@@ -221,7 +221,7 @@ def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=Fal
         rss_only: Only run RSS feed fetch.
         search_only: Only run web search.
         skip_analyzer: Skip LLM job analysis step.
-        cleanjobdata: Also fetch from the CleanJobData API.
+        cleanjobdata: Fetch from the CleanJobData API instead of RSS/web search.
 
     Returns:
         Tuple of (total_fetched, total_upserted).
@@ -237,12 +237,12 @@ def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=Fal
         total_fetched += cjd_fetched
         total_upserted += cjd_upserted
 
-    if not search_only:
+    if not search_only and not cleanjobdata:
         rss_fetched, rss_upserted = run_rss_fetch(conn)
         total_fetched += rss_fetched
         total_upserted += rss_upserted
 
-    if not rss_only:
+    if not rss_only and not cleanjobdata:
         search_fetched, search_upserted = run_web_search(conn)
         total_fetched += search_fetched
         total_upserted += search_upserted
@@ -278,7 +278,7 @@ def main():
     parser.add_argument(
         "--cleanjobdata",
         action="store_true",
-        help="Also fetch jobs from the CleanJobData API",
+        help="Fetch jobs from the CleanJobData API only (skips RSS and web search)",
     )
     parser.add_argument(
         "--skip-analyzer",
