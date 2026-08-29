@@ -81,6 +81,73 @@ def run_rss_fetch(conn) -> tuple[int, int]:
     return len(jobs), upserted
 
 
+def run_cleanjobdata_fetch(conn) -> tuple[int, int]:
+    """Fetch jobs from the CleanJobData API and store to database.
+
+    Mirrors run_rss_fetch: incremental via per-query last-fetch timestamps
+    stored under 'cleanjobdata:<query>' feed keys.
+
+    Returns:
+        Tuple of (jobs_fetched, jobs_upserted)
+    """
+    print("=" * 60)
+    print("FETCHING CLEANJOBDATA")
+    print("=" * 60)
+
+    from pipeline.cleanjobdata import QUERIES, fetch_jobs
+
+    # Last-fetch rows are keyed by 'cleanjobdata:<query>'; fetch_jobs wants
+    # {query: datetime}.
+    all_fetches = get_all_last_fetches(db=conn)
+    since = {
+        q: all_fetches[f"cleanjobdata:{q}"]
+        for q in QUERIES
+        if f"cleanjobdata:{q}" in all_fetches
+    }
+
+    jobs = fetch_jobs(QUERIES, since=since)
+
+    if not jobs:
+        print("No new jobs found from CleanJobData")
+        return 0, 0
+
+    print(f"\nFound {len(jobs)} new jobs from CleanJobData")
+
+    upserted = 0
+    failures = 0
+    upserted_jobs = []
+    for job in jobs:
+        try:
+            posted = job.get("Posted Date")
+            upsert_job(
+                title=job["Job Title"],
+                url=job["URL"],
+                description=job.get("Description"),
+                posted_date=posted.strftime("%Y-%m-%d") if posted else None,
+                source=job.get("Source"),
+                feed=job.get("Feed"),
+                feed_url=job.get("Feed URL"),
+                db=conn,
+            )
+            upserted += 1
+            upserted_jobs.append(job)
+        except Exception as e:
+            failures += 1
+            print(f"Error upserting job {job.get('URL')}: {e}")
+            if failures > 5:
+                print(f"ERROR: Too many upsert failures ({failures}), aborting CleanJobData fetch")
+                break
+
+    for query in QUERIES:
+        rows = [j for j in upserted_jobs if j.get("Feed") == query]
+        if rows:
+            newest = max(j["Posted Date"] for j in rows)
+            set_last_fetch(f"cleanjobdata:{query}", newest, db=conn)
+
+    print(f"Stored {upserted} jobs from CleanJobData")
+    return len(jobs), upserted
+
+
 def run_web_search(conn) -> tuple[int, int]:
     """Run web search for jobs and store to database.
     
@@ -142,7 +209,8 @@ def run_web_search(conn) -> tuple[int, int]:
     return len(jobs), upserted
 
 
-def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=False):
+def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=False,
+                 cleanjobdata=False):
     """Run the full job search pipeline.
 
     Fetches jobs from configured sources, then runs the LLM analyzer
@@ -153,6 +221,7 @@ def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=Fal
         rss_only: Only run RSS feed fetch.
         search_only: Only run web search.
         skip_analyzer: Skip LLM job analysis step.
+        cleanjobdata: Also fetch from the CleanJobData API.
 
     Returns:
         Tuple of (total_fetched, total_upserted).
@@ -162,6 +231,11 @@ def run_pipeline(conn=None, rss_only=False, search_only=False, skip_analyzer=Fal
 
     total_fetched = 0
     total_upserted = 0
+
+    if cleanjobdata:
+        cjd_fetched, cjd_upserted = run_cleanjobdata_fetch(conn)
+        total_fetched += cjd_fetched
+        total_upserted += cjd_upserted
 
     if not search_only:
         rss_fetched, rss_upserted = run_rss_fetch(conn)
@@ -202,6 +276,11 @@ def main():
         help="Run only web search",
     )
     parser.add_argument(
+        "--cleanjobdata",
+        action="store_true",
+        help="Also fetch jobs from the CleanJobData API",
+    )
+    parser.add_argument(
         "--skip-analyzer",
         action="store_true",
         help="Skip LLM job analysis step",
@@ -226,6 +305,7 @@ def main():
         rss_only=args.rss_only,
         search_only=args.search_only,
         skip_analyzer=args.skip_analyzer,
+        cleanjobdata=args.cleanjobdata,
     )
 
     end_time = datetime.now()
