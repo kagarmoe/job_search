@@ -20,7 +20,92 @@
       "Bash(git -C:*)",
       "Bash(bd sync:*)",
       "Bash(bd doctor:*)",
-      "Bash(bd:*)"
+      "Bash(bd:*)",
+      "Bash(swamp model type search:*)",
+      "Bash(swamp behavior type search:*)",
+      "Bash(swamp behaviour type search:*)",
+      "Bash(swamp model type describe:*)",
+      "Bash(swamp behavior type describe:*)",
+      "Bash(swamp behaviour type describe:*)",
+      "Bash(swamp model search:*)",
+      "Bash(swamp behavior search:*)",
+      "Bash(swamp behaviour search:*)",
+      "Bash(swamp model create:*)",
+      "Bash(swamp behavior create:*)",
+      "Bash(swamp behaviour create:*)",
+      "Bash(swamp model edit:*)",
+      "Bash(swamp behavior edit:*)",
+      "Bash(swamp behaviour edit:*)",
+      "Bash(swamp model delete:*)",
+      "Bash(swamp behavior delete:*)",
+      "Bash(swamp behaviour delete:*)",
+      "Bash(swamp model get:*)",
+      "Bash(swamp behavior get:*)",
+      "Bash(swamp behaviour get:*)",
+      "Bash(swamp model validate:*)",
+      "Bash(swamp behavior validate:*)",
+      "Bash(swamp behaviour validate:*)",
+      "Bash(swamp model output:*)",
+      "Bash(swamp behavior output:*)",
+      "Bash(swamp behaviour output:*)",
+      "Bash(swamp model method history:*)",
+      "Bash(swamp behavior history:*)",
+      "Bash(swamp behaviour history:*)",
+      "Bash(swamp workflow search:*)",
+      "Bash(swamp workflow create:*)",
+      "Bash(swamp workflow edit:*)",
+      "Bash(swamp workflow delete:*)",
+      "Bash(swamp workflow get:*)",
+      "Bash(swamp workflow validate:*)",
+      "Bash(swamp workflow schema:*)",
+      "Bash(swamp workflow history:*)",
+      "Bash(swamp vault type:*)",
+      "Bash(swamp vault search:*)",
+      "Bash(swamp vault list:*)",
+      "Bash(swamp vault get:*)",
+      "Bash(swamp vault describe:*)",
+      "Bash(swamp vault inspect:*)",
+      "Bash(swamp vault list-keys:*)",
+      "Bash(swamp vault audit-trail:*)",
+      "Bash(swamp vault create:*)",
+      "Bash(swamp vault edit:*)",
+      "Bash(swamp vault put:*)",
+      "Bash(swamp vault write-secret:*)",
+      "Bash(swamp vault delete:*)",
+      "Bash(swamp vault annotate:*)",
+      "Bash(swamp vault migrate:*)",
+      "Bash(swamp data:*)",
+      "Bash(swamp repo:*)",
+      "Bash(swamp telemetry:*)",
+      "Bash(swamp audit:*)",
+      "Bash(swamp init:*)",
+      "Bash(swamp version:*)",
+      "Bash(swamp completions:*)",
+      "Bash(swamp issue:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "swamp audit record --from-hook"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "swamp audit record --from-hook"
+          }
+        ]
+      }
     ]
   }
 }
